@@ -57,16 +57,22 @@ class FetchResult:
 def normalize_marketplace(value: str | None) -> dict[str, str]:
     if not value:
         return MARKETPLACES["US"]
-    v = str(value).strip().upper()
-    if v in MARKETPLACES:
-        return MARKETPLACES[v]
-    lower = str(value).lower()
-    if "amazon.ca" in lower or lower == "ca" or "canada" in lower:
-        return MARKETPLACES["CA"]
-    if "amazon.co.uk" in lower or lower in {"uk", "gb", "united kingdom", "britain"}:
-        return MARKETPLACES["UK"]
-    if "amazon.de" in lower or lower in {"de", "germany", "deutschland"}:
-        return MARKETPLACES["DE"]
+
+    raw = str(value).strip()
+    upper = raw.upper()
+    if upper in MARKETPLACES:
+        return MARKETPLACES[upper]
+
+    lower = raw.lower()
+    aliases = {
+        "US": ["amazon.com", "us", "usa", "united states", "america", "美国", "美国站", "美站"],
+        "CA": ["amazon.ca", "ca", "canada", "加拿大", "加拿大站", "加站"],
+        "UK": ["amazon.co.uk", "uk", "gb", "united kingdom", "britain", "england", "英国", "英国站", "英站"],
+        "DE": ["amazon.de", "de", "germany", "deutschland", "德国", "德国站", "德站"],
+    }
+    for code, values in aliases.items():
+        if any(alias in lower or alias in raw for alias in values):
+            return MARKETPLACES[code]
     return MARKETPLACES["US"]
 
 
