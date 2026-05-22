@@ -30,6 +30,14 @@ def test_chinese_marketplace_normalization():
     assert normalize_marketplace("Amazon 德国")["domain"] == "amazon.de"
 
 
+def test_marketplace_normalization_avoids_short_alias_substring_false_positives():
+    assert normalize_marketplace("please use canada")["domain"] == "amazon.ca"
+    assert normalize_marketplace("canada customer")["domain"] == "amazon.ca"
+    assert normalize_marketplace("ukulele stand")["domain"] == "amazon.com"
+    assert normalize_marketplace("candle warmer")["domain"] == "amazon.com"
+    assert normalize_marketplace("handmade highlighter")["domain"] == "amazon.com"
+
+
 def test_bought_count_parsing():
     assert extract_bought_count("1K+ bought in past month") == 1000
     assert extract_bought_count("500+ bought in past month") == 500
@@ -224,6 +232,7 @@ def test_fetch_url_passes_accept_language_to_scrapling(monkeypatch=None):
 def main():
     test_marketplace_normalization()
     test_chinese_marketplace_normalization()
+    test_marketplace_normalization_avoids_short_alias_substring_false_positives()
     test_bought_count_parsing()
     test_bsr_rank_parsing()
     test_german_listing_signal_parsing()

@@ -64,14 +64,44 @@ def normalize_marketplace(value: str | None) -> dict[str, str]:
         return MARKETPLACES[upper]
 
     lower = raw.lower()
-    aliases = {
-        "US": ["amazon.com", "us", "usa", "united states", "america", "美国", "美国站", "美站"],
-        "CA": ["amazon.ca", "ca", "canada", "加拿大", "加拿大站", "加站"],
-        "UK": ["amazon.co.uk", "uk", "gb", "united kingdom", "britain", "england", "英国", "英国站", "英站"],
-        "DE": ["amazon.de", "de", "germany", "deutschland", "德国", "德国站", "德站"],
+    domain_aliases = {
+        "US": ["amazon.com"],
+        "CA": ["amazon.ca"],
+        "UK": ["amazon.co.uk"],
+        "DE": ["amazon.de"],
     }
-    for code, values in aliases.items():
-        if any(alias in lower or alias in raw for alias in values):
+    for code, aliases in domain_aliases.items():
+        if any(alias in lower for alias in aliases):
+            return MARKETPLACES[code]
+
+    phrase_aliases = {
+        "US": ["usa", "united states", "america"],
+        "CA": ["canada"],
+        "UK": ["united kingdom", "britain", "england"],
+        "DE": ["germany", "deutschland"],
+    }
+    for code, aliases in phrase_aliases.items():
+        if any(re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", lower) for alias in aliases):
+            return MARKETPLACES[code]
+
+    chinese_aliases = {
+        "US": ["美国", "美国站", "美站"],
+        "CA": ["加拿大", "加拿大站", "加站"],
+        "UK": ["英国", "英国站", "英站"],
+        "DE": ["德国", "德国站", "德站"],
+    }
+    for code, aliases in chinese_aliases.items():
+        if any(alias in raw for alias in aliases):
+            return MARKETPLACES[code]
+
+    short_aliases = {
+        "US": ["us"],
+        "CA": ["ca"],
+        "UK": ["uk", "gb"],
+        "DE": ["de"],
+    }
+    for code, aliases in short_aliases.items():
+        if any(re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", lower) for alias in aliases):
             return MARKETPLACES[code]
     return MARKETPLACES["US"]
 
