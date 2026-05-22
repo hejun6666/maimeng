@@ -22,6 +22,14 @@ def test_marketplace_normalization():
     assert normalize_marketplace(None)["code"] == "US"
 
 
+def test_chinese_marketplace_normalization():
+    assert normalize_marketplace("美国站")["domain"] == "amazon.com"
+    assert normalize_marketplace("加拿大站")["domain"] == "amazon.ca"
+    assert normalize_marketplace("英国站")["domain"] == "amazon.co.uk"
+    assert normalize_marketplace("德国站")["domain"] == "amazon.de"
+    assert normalize_marketplace("Amazon 德国")["domain"] == "amazon.de"
+
+
 def test_bought_count_parsing():
     assert extract_bought_count("1K+ bought in past month") == 1000
     assert extract_bought_count("500+ bought in past month") == 500
@@ -42,6 +50,23 @@ def test_bsr_rank_parsing():
     ]
     german = extract_bsr_ranks("Amazon Bestseller-Rang: Nr. 1 in Textmarker")
     assert german == [{"rank": 1, "category": "Textmarker"}]
+
+
+def test_german_listing_signal_parsing():
+    html = """
+    <span id="productTitle">Textmarker Set Pastellfarben</span>
+    <span>4,6 von 5 Sternen</span>
+    <span id="acrCustomerReviewText">1.234 Sternebewertungen</span>
+    <span class="a-price-whole">8</span><span class="a-price-fraction">99</span>
+    <span>1.000+ Mal im letzten Monat gekauft</span>
+    <tr><th>Amazon Bestseller-Rang</th><td>Nr. 1 in Textmarker</td></tr>
+    """
+    listing = parse_listing_html(html, "B0TEXTMARK", "https://www.amazon.de/dp/B0TEXTMARK")
+    assert listing["rating"] == 4.6
+    assert listing["reviews"] == 1234
+    assert listing["price"] == "8.99"
+    assert listing["boughtInPastMonth"] == 1000
+    assert listing["bestSellerRanks"] == [{"rank": 1, "category": "Textmarker"}]
 
 
 def test_model_supplied_research_inputs_take_priority():
@@ -137,14 +162,77 @@ def test_bsr_and_bought_drive_competitor_selection():
     assert ranked[0]["asin"] == "B0STRONG001"
 
 
+def test_relevance_guardrail_blocks_wrong_category_winner():
+    irrelevant_bestseller = {
+        "asin": "B0DOGTOY001",
+        "title": "Dog Chew Toy for Aggressive Chewers",
+        "query": "highlighter pens",
+        "boughtInPastMonth": 20000,
+        "hasBoughtSignal": True,
+        "bestSellerRanks": [{"rank": 1, "category": "Pet Supplies"}],
+        "rating": 4.8,
+        "reviews": 50000,
+        "bulletCount": 5,
+        "price": "9.99",
+        "imageCount": 8,
+    }
+    relevant_listing = {
+        "asin": "B0HIGHLIGHT",
+        "title": "Chisel Tip Highlighter Pens Assorted Colors",
+        "query": "highlighter pens",
+        "boughtInPastMonth": None,
+        "hasBoughtSignal": False,
+        "bestSellerRanks": [],
+        "rating": 4.5,
+        "reviews": 500,
+        "bulletCount": 5,
+        "price": "6.99",
+        "imageCount": 8,
+    }
+    ranked = rank_candidates(
+        [irrelevant_bestseller, relevant_listing],
+        relevance_terms=["highlighter", "chisel tip"],
+        target_categories=["Liquid Highlighters"],
+        desired_count=2,
+    )
+    assert [item["asin"] for item in ranked] == ["B0HIGHLIGHT"]
+
+
+def test_fetch_url_passes_accept_language_to_scrapling(monkeypatch=None):
+    import amazon_collect_brief as module
+
+    calls = []
+    original = module.try_scrapling
+
+    def fake_try_scrapling(url, mode="fetcher", accept_language="en-US,en;q=0.9"):
+        calls.append((url, mode, accept_language))
+        return module.FetchResult(url=url, html="<html>ok</html>", fetcher="fake")
+
+    try:
+        module.try_scrapling = fake_try_scrapling
+        result = module.fetch_url(
+            "https://www.amazon.de/s?k=Textmarker",
+            accept_language="de-DE,de;q=0.9,en;q=0.7",
+        )
+    finally:
+        module.try_scrapling = original
+
+    assert result.fetcher == "fake"
+    assert calls[0][2] == "de-DE,de;q=0.9,en;q=0.7"
+
+
 def main():
     test_marketplace_normalization()
+    test_chinese_marketplace_normalization()
     test_bought_count_parsing()
     test_bsr_rank_parsing()
+    test_german_listing_signal_parsing()
     test_model_supplied_research_inputs_take_priority()
     test_search_result_parsing()
     test_listing_parsing_and_ranking()
     test_bsr_and_bought_drive_competitor_selection()
+    test_relevance_guardrail_blocks_wrong_category_winner()
+    test_fetch_url_passes_accept_language_to_scrapling()
     print("self_test: OK")
 
 
