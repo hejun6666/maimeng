@@ -1,18 +1,16 @@
-# Company Codex Skills
+# 迈萌 Codex Skills
 
-This repo contains Codex skills for the team.
+这个仓库放公司内部给 Codex 使用的 skills。
 
-## Install a skill
+## 使用文档
 
-For example, install the Amazon listing skill:
+- [Amazon Listing 自动文案 Skill 使用说明](docs/amazon-listing-skill-usage.md)
+
+## Skill 安装地址
 
 ```text
 https://github.com/hejun6666/maimeng/tree/main/skills/amazon-listing-auto-copywriter
 ```
 
-In Codex, ask to install that GitHub path, then restart Codex to pick up new skills.
-
-## Repo layout
-
-- `skills/amazon-listing-auto-copywriter/` - Amazon US / CA listing copy skill
+安装后需要重启 Codex。
 
