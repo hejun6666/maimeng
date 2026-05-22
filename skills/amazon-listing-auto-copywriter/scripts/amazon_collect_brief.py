@@ -129,6 +129,10 @@ def parse_count_number(value: str) -> float:
     return float(raw)
 
 
+def parse_int_number(value: str) -> int:
+    return int(parse_count_number(value))
+
+
 def extract_bought_count(text: str | None) -> int | None:
     if not text:
         return None
@@ -188,8 +192,16 @@ def extract_bsr_ranks(text: str | None) -> list[dict[str, Any]]:
 def extract_rating(text: str | None) -> float | None:
     if not text:
         return None
-    match = re.search(r"(\d+(?:\.\d+)?)\s+out\s+of\s+5\s+stars", clean_text(text), re.I)
-    return float(match.group(1)) if match else None
+    cleaned = clean_text(text)
+    patterns = [
+        r"(\d+(?:\.\d+)?)\s+out\s+of\s+5\s+stars",
+        r"(\d+(?:,\d+)?)\s+von\s+5\s+Sternen",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, cleaned, re.I)
+        if match:
+            return float(match.group(1).replace(",", "."))
+    return None
 
 
 def extract_review_count(text: str | None) -> int | None:
@@ -197,24 +209,32 @@ def extract_review_count(text: str | None) -> int | None:
         return None
     text = clean_text(text)
     patterns = [
-        r"([\d,]+)\s+(?:ratings|reviews)",
-        r"id=\"acrCustomerReviewText\"[^>]*>\s*([\d,]+)",
+        r'id="acrCustomerReviewText"[^>]*>\s*([\d,.]+)',
+        r"([\d,.]+)\s+(?:ratings|reviews)",
+        r"([\d,.]+)\s+(?:Sternebewertungen|Bewertungen|Rezensionen)",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.I)
         if match:
-            return int(match.group(1).replace(",", ""))
+            return parse_int_number(match.group(1))
     return None
 
 
 def money_from_html(html: str) -> str:
-    whole = re.search(r'class="a-price-whole">\s*([\d,]+)', html)
+    whole = re.search(r'class="a-price-whole">\s*([\d,.]+)', html)
     frac = re.search(r'class="a-price-fraction">\s*(\d{2})', html)
     if whole:
+        whole_value = whole.group(1).replace(".", "").replace(",", "")
         cents = frac.group(1) if frac else "00"
-        return f"{whole.group(1).replace(',', '')}.{cents}"
-    offscreen = re.search(r'class="a-offscreen">\s*([$A-Z]*\s?[\d,.]+)', html)
-    return clean_text(offscreen.group(1)) if offscreen else ""
+        return f"{whole_value}.{cents}"
+    offscreen = re.search(r'class="a-offscreen">\s*([^<]+)', html)
+    if not offscreen:
+        return ""
+    raw = clean_text(offscreen.group(1))
+    amount = re.search(r"([\d,.]+)", raw)
+    if not amount:
+        return raw
+    return f"{parse_count_number(amount.group(1)):.2f}"
 
 
 def asin_from_url(url: str) -> str | None:
