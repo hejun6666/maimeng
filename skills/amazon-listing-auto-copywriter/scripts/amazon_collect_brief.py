@@ -133,6 +133,28 @@ def parse_int_number(value: str) -> int:
     return int(parse_count_number(value))
 
 
+def parse_price_number(value: str) -> float:
+    raw = value.strip()
+    if "," in raw and "." in raw:
+        if raw.rfind(",") > raw.rfind("."):
+            raw = raw.replace(".", "").replace(",", ".")
+        else:
+            raw = raw.replace(",", "")
+    elif "," in raw:
+        parts = raw.split(",")
+        if len(parts[-1]) == 2:
+            raw = raw.replace(".", "").replace(",", ".")
+        else:
+            raw = raw.replace(",", "")
+    elif "." in raw:
+        parts = raw.split(".")
+        if len(parts[-1]) == 2:
+            raw = raw.replace(",", "")
+        else:
+            raw = raw.replace(".", "")
+    return float(raw)
+
+
 def extract_bought_count(text: str | None) -> int | None:
     if not text:
         return None
@@ -234,7 +256,7 @@ def money_from_html(html: str) -> str:
     amount = re.search(r"([\d,.]+)", raw)
     if not amount:
         return raw
-    return f"{parse_count_number(amount.group(1)):.2f}"
+    return f"{parse_price_number(amount.group(1)):.2f}"
 
 
 def asin_from_url(url: str) -> str | None:

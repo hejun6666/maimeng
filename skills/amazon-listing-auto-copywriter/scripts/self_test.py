@@ -4,6 +4,7 @@
 from amazon_collect_brief import (
     extract_bsr_ranks,
     extract_bought_count,
+    money_from_html,
     normalize_marketplace,
     parse_listing_html,
     parse_search_results,
@@ -58,6 +59,15 @@ def test_bsr_rank_parsing():
     ]
     german = extract_bsr_ranks("Amazon Bestseller-Rang: Nr. 1 in Textmarker")
     assert german == [{"rank": 1, "category": "Textmarker"}]
+
+
+def test_price_parsing_handles_english_and_german_separators():
+    english = '<span class="a-offscreen">$1,234.56</span>'
+    german = '<span class="a-offscreen">12,99 €</span>'
+    german_thousands = '<span class="a-offscreen">1.234,56 €</span>'
+    assert money_from_html(english) == "1234.56"
+    assert money_from_html(german) == "12.99"
+    assert money_from_html(german_thousands) == "1234.56"
 
 
 def test_german_listing_signal_parsing():
@@ -289,6 +299,7 @@ def main():
     test_marketplace_normalization_avoids_short_alias_substring_false_positives()
     test_bought_count_parsing()
     test_bsr_rank_parsing()
+    test_price_parsing_handles_english_and_german_separators()
     test_german_listing_signal_parsing()
     test_model_supplied_research_inputs_take_priority()
     test_search_result_parsing()
