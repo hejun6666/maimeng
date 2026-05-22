@@ -496,6 +496,47 @@ def score_relevance(title: str, relevance_terms: list[str]) -> float:
     return matches / max(len(terms), 1)
 
 
+def score_category_relevance(
+    ranks: list[dict[str, Any]],
+    relevance_terms: list[str],
+    target_categories: list[str] | None = None,
+) -> float:
+    if not ranks:
+        return 0.0
+    target_categories = target_categories or []
+    categories = " ".join(str(item.get("category", "")) for item in ranks).lower()
+    category_words = tokenize_for_match(categories)
+    targets = [target.lower() for target in target_categories]
+    if any(target and target in categories for target in targets):
+        return 1.0
+    if not relevance_terms:
+        return 0.0
+    matches = 0
+    for term in [term.lower() for term in relevance_terms]:
+        term_words = set(re.findall(r"[a-zA-Z0-9]+", term))
+        if term in categories or (term_words and term_words <= category_words):
+            matches += 1
+    return matches / max(len(relevance_terms), 1)
+
+
+def passes_relevance_guardrail(
+    item: dict[str, Any],
+    relevance_terms: list[str],
+    target_categories: list[str] | None = None,
+) -> bool:
+    if not relevance_terms and not target_categories:
+        return True
+    title_relevance = score_relevance(str(item.get("title", "")), relevance_terms)
+    category_relevance = score_category_relevance(
+        item.get("bestSellerRanks", []),
+        relevance_terms,
+        target_categories,
+    )
+    query_relevance = score_relevance(str(item.get("query", "")), relevance_terms)
+    item["guardrailRelevanceScore"] = round(max(title_relevance, category_relevance, query_relevance), 4)
+    return title_relevance > 0 or category_relevance > 0
+
+
 def score_bsr_ranks(
     ranks: list[dict[str, Any]],
     relevance_terms: list[str],
@@ -540,6 +581,8 @@ def rank_candidates(
     ranked: list[dict[str, Any]] = []
     target_categories = target_categories or []
     for item in candidates:
+        if not passes_relevance_guardrail(item, relevance_terms, target_categories):
+            continue
         relevance = score_relevance(item.get("title", ""), relevance_terms)
         bought = item.get("boughtInPastMonth") or 0
         bought_score = min(math.log10(bought + 1) / 4, 1.0)
