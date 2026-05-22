@@ -12,11 +12,25 @@ An effective competitor should have:
 - relevance to the user's product
 - at least one supporting signal such as bought-past-month, Best Sellers Rank, rating, reviews, price, or image count
 
+## Model-Led Search Inputs
+
+Codex must provide the market-understanding inputs before this script runs:
+
+- `researchQueries`: station-local Amazon search terms. These should come from the model's understanding of the product, marketplace, buyer language, and local terminology.
+- `relevanceTerms`: short terms used by the script to filter obvious mismatches and score relevance.
+- `targetCategories`: likely BSR subcategories. Matching subcategory ranks should be weighted heavily.
+
+The script's generated queries are fallback only. The script should act as a crawler and ranker, not as the layer that decides what German, British, or category-specific buyers search for.
+
+For DE, provide both German and English queries. For UK, use light British localisation where natural.
+
 ## Competitor Selection Rule
 
 Prefer products with both Amazon front-end `bought in past month` signals and strong `Best Sellers Rank` / BSR signals. Specific subcategory ranks that match the user's product, such as `#2 in Baby Playards`, should carry more weight than broad category ranks such as `#396 in Baby`.
 
 If fewer than 5 competitors have both signals, supplement with highly relevant, high-review, high-rating, image-rich, complete listings. Label which products have public monthly-bought signals, which have BSR signals, and which were selected mainly for listing completeness.
+
+Use relevance primarily as a guardrail against wrong products. Do not let title keyword overlap outrank strong category-level BSR and bought-past-month signals.
 
 Do not describe `bought in past month` as exact monthly sales. Call it `Amazon front-end public sales heat` or `Amazon displayed bought-past-month signal`.
 

@@ -4,15 +4,17 @@
 
 ## 这个 Skill 是干什么的
 
-`amazon-listing-auto-copywriter` 用来生成 Amazon US / CA 站点的商品 Listing 英文文案。
+`amazon-listing-auto-copywriter` 用来生成 Amazon US / CA / UK / DE 站点的商品 Listing 文案。
 
 它会先自动抓取 Amazon 前台公开竞品信息，再输出：
 
-- 可复制到 Amazon 的英文标题、五点、描述、后台搜索词
-- 对应英文的一对一中文翻译
+- 可复制到 Amazon 的标题、五点、描述、后台搜索词
+- 对应主文案的一对一中文翻译
 - 给运营复核的竞品依据、关键词池、待核实清单、合规风险提醒
 
 注意：它不使用卖家精灵、SIF、ABA 等付费数据接口，只用 Amazon 前台公开信息。
+
+它的竞品搜索逻辑是：Codex 先根据产品和站点生成当地买家会搜的关键词、相关性词、目标 BSR 类目；脚本只负责抓取 Amazon 页面、抽取公开字段、按 BSR 和近月购买热度等信号排序。脚本不会自己从一个中文品名里猜市场。
 
 ## 第一次安装
 
@@ -42,6 +44,14 @@
 用 amazon-listing-auto-copywriter，产品是婴儿围栏，加拿大站
 ```
 
+```text
+用 amazon-listing-auto-copywriter，产品是儿童显微镜，英国站
+```
+
+```text
+用 amazon-listing-auto-copywriter，产品是荧光笔，德国站
+```
+
 如果你有产品资料，建议这样写：
 
 ```text
@@ -60,7 +70,7 @@
 
 ```text
 产品名：
-站点：美国站 / 加拿大站
+站点：美国站 / 加拿大站 / 英国站 / 德国站
 数量：
 颜色：
 尺寸：
@@ -92,7 +102,7 @@
 
 ### 1. Amazon Copy - Enhanced Candidate Version
 
-这是主文案区，英文，可给运营复制修改。
+这是主文案区，可给运营复制修改。
 
 包括：
 
@@ -101,17 +111,17 @@
 - Product Description
 - Backend Search Terms
 
-这部分不会混中文，也不会出现 `[待核实]`。
+美国站、加拿大站、英国站会输出英文；德国站会输出德文。主文案区不会混中文，也不会出现 `[待核实]`。
 
 ### 2. 中文文案对照
 
 这是给运营看的中文翻译。
 
-要求是一对一翻译英文内容：
+要求是一对一翻译主文案内容：
 
-- 英文标题对应中文标题
-- 英文五点逐条对应中文五点
-- 英文描述完整翻译
+- 主文案标题对应中文标题
+- 主文案五点逐条对应中文五点
+- 主文案描述完整翻译
 - 后台搜索词翻译成中文含义
 
 这部分不是给 Amazon 复制的。
@@ -123,6 +133,7 @@
 重点看：
 
 - 竞品抓取依据：用了哪些 ASIN，销量热度、BSR、评分、评论、图片数如何
+- 查询词依据：Codex 为这个站点生成了哪些当地买家搜索词
 - 竞品洞察：竞品都在怎么写
 - 关键词池：哪些词值得参考
 - 待核实清单：哪些功能、尺寸、材质、认证不能直接相信
@@ -171,6 +182,21 @@
 用 amazon-listing-auto-copywriter，产品是【产品名】，美国站。
 请按美国本土 Amazon Listing 语感写，五点要有场景、痛点、功能支撑和结果感。
 中文对照要逐句完整翻译。
+```
+
+### 想做英国站
+
+```text
+用 amazon-listing-auto-copywriter，产品是【产品名】，英国站。
+请按英国 Amazon Listing 语感写，允许使用自然的英式表达。
+中文对照要逐句完整翻译。
+```
+
+### 想做德国站
+
+```text
+用 amazon-listing-auto-copywriter，产品是【产品名】，德国站。
+主文案用德语写。中文对照要逐句完整翻译。
 ```
 
 ### 想限制不要乱写
@@ -234,6 +260,7 @@ https://github.com/hejun6666/maimeng/tree/main/skills/amazon-listing-auto-copywr
 
 - Amazon US
 - Amazon CA
+- Amazon UK
+- Amazon DE
 
 不写站点时，默认美国站。
-

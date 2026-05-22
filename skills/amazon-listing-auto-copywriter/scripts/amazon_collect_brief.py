@@ -24,8 +24,10 @@ from urllib.request import Request, urlopen
 
 
 MARKETPLACES = {
-    "US": {"code": "US", "domain": "amazon.com", "currency": "USD"},
-    "CA": {"code": "CA", "domain": "amazon.ca", "currency": "CAD"},
+    "US": {"code": "US", "domain": "amazon.com", "currency": "USD", "language": "en-US", "acceptLanguage": "en-US,en;q=0.9"},
+    "CA": {"code": "CA", "domain": "amazon.ca", "currency": "CAD", "language": "en-CA", "acceptLanguage": "en-CA,en;q=0.9"},
+    "UK": {"code": "UK", "domain": "amazon.co.uk", "currency": "GBP", "language": "en-GB", "acceptLanguage": "en-GB,en;q=0.9"},
+    "DE": {"code": "DE", "domain": "amazon.de", "currency": "EUR", "language": "de-DE", "acceptLanguage": "de-DE,de;q=0.9,en;q=0.7"},
 }
 
 USER_AGENTS = [
@@ -61,6 +63,10 @@ def normalize_marketplace(value: str | None) -> dict[str, str]:
     lower = str(value).lower()
     if "amazon.ca" in lower or lower == "ca" or "canada" in lower:
         return MARKETPLACES["CA"]
+    if "amazon.co.uk" in lower or lower in {"uk", "gb", "united kingdom", "britain"}:
+        return MARKETPLACES["UK"]
+    if "amazon.de" in lower or lower in {"de", "germany", "deutschland"}:
+        return MARKETPLACES["DE"]
     return MARKETPLACES["US"]
 
 
@@ -76,14 +82,34 @@ def clean_text(value: str | None) -> str:
     return value
 
 
+def parse_count_number(value: str) -> float:
+    raw = value.strip()
+    if "," in raw and "." in raw:
+        raw = raw.replace(".", "").replace(",", ".")
+    elif "." in raw and re.search(r"\.\d{3}(?:\D|$)", raw):
+        raw = raw.replace(".", "")
+    else:
+        raw = raw.replace(",", "")
+    return float(raw)
+
+
 def extract_bought_count(text: str | None) -> int | None:
     if not text:
         return None
     text = clean_text(text)
-    match = re.search(r"([\d,.]+)\s*([KkMm]?)\+?\s+bought\s+in\s+past\s+month", text)
+    patterns = [
+        r"([\d,.]+)\s*([KkMm]?)\+?\s+bought\s+in\s+past\s+month",
+        r"([\d,.]+)\s*([KkMm]?)\+?\s+Mal\s+im\s+letzten\s+Monat\s+gekauft",
+        r"im\s+letzten\s+Monat\s+([\d,.]+)\s*([KkMm]?)\+?\s+Mal\s+gekauft",
+    ]
+    match = None
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I)
+        if match:
+            break
     if not match:
         return None
-    value = float(match.group(1).replace(",", ""))
+    value = parse_count_number(match.group(1))
     suffix = match.group(2).lower()
     if suffix == "k":
         value *= 1000
@@ -103,6 +129,17 @@ def extract_bsr_ranks(text: str | None) -> list[dict[str, Any]]:
         rank = int(match.group(1).replace(",", ""))
         category = re.sub(r"\s+", " ", match.group(2)).strip(" -:;,.")
         if not category or category.lower().startswith("see top"):
+            continue
+        key = (rank, category.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        ranks.append({"rank": rank, "category": category})
+    german_pattern = r"Nr\.?\s*([\d.]+)\s+in\s+([^#()]{2,90}?)(?=\s*(?:\(|Nr\.?|$|ASIN|Kundenrezensionen|Im Angebot|Produktabmessungen))"
+    for match in re.finditer(german_pattern, text, flags=re.I):
+        rank = int(match.group(1).replace(".", ""))
+        category = re.sub(r"\s+", " ", match.group(2)).strip(" -:;,.")
+        if not category or category.lower().startswith("siehe top"):
             continue
         key = (rank, category.lower())
         if key in seen:
@@ -165,6 +202,42 @@ def product_terms_from_brief(brief: dict[str, Any]) -> list[str]:
     return [w for w in words if len(w) > 2 and w not in STOP_WORDS]
 
 
+def normalize_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        items = [str(item).strip() for item in value if str(item).strip()]
+    elif isinstance(value, str):
+        items = [part.strip() for part in re.split(r"[\n,;|]+", value) if part.strip()]
+    else:
+        items = []
+    output: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        key = re.sub(r"\s+", " ", item).strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            output.append(re.sub(r"\s+", " ", item).strip())
+    return output
+
+
+def resolve_search_queries(brief: dict[str, Any], limit: int = 12) -> list[str]:
+    for key in ("researchQueries", "searchQueries", "queries"):
+        queries = normalize_list(brief.get(key))
+        if queries:
+            return queries[:limit]
+    return generate_search_queries(brief, limit=limit)
+
+
+def relevance_terms_from_brief(brief: dict[str, Any]) -> list[str]:
+    terms = normalize_list(brief.get("relevanceTerms"))
+    if terms:
+        return [term.lower() for term in terms]
+    return product_terms_from_brief(brief)
+
+
+def target_categories_from_brief(brief: dict[str, Any]) -> list[str]:
+    return normalize_list(brief.get("targetCategories"))
+
+
 def generate_search_queries(brief: dict[str, Any], limit: int = 8) -> list[str]:
     product = str(brief.get("product") or brief.get("productType") or brief.get("category") or "").strip()
     features = [str(x).strip() for x in brief.get("features", []) if str(x).strip()]
@@ -219,7 +292,12 @@ def try_scrapling(url: str, mode: str = "fetcher") -> FetchResult | None:
     return None
 
 
-def fetch_url(url: str, cache_dir: Path | None = None, force: bool = False) -> FetchResult:
+def fetch_url(
+    url: str,
+    cache_dir: Path | None = None,
+    force: bool = False,
+    accept_language: str = "en-US,en;q=0.9",
+) -> FetchResult:
     cache_key = re.sub(r"[^a-zA-Z0-9]+", "_", url)[:180] + ".html"
     if cache_dir:
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -236,7 +314,7 @@ def fetch_url(url: str, cache_dir: Path | None = None, force: bool = False) -> F
 
     headers = {
         "User-Agent": random.choice(USER_AGENTS),
-        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Language": accept_language,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
     req = Request(url, headers=headers)
@@ -358,48 +436,82 @@ def parse_listing_html(html: str, asin: str, url: str) -> dict[str, Any]:
     }
 
 
-def score_relevance(title: str, product_terms: list[str]) -> float:
-    if not title or not product_terms:
+def tokenize_for_match(text: str) -> set[str]:
+    words = set(re.findall(r"[a-zA-Z0-9]+", text.lower()))
+    lowered = text.lower()
+    for term in re.split(r"[\n,;|]+", lowered):
+        term = re.sub(r"\s+", " ", term).strip()
+        if term:
+            words.add(term)
+    return words
+
+
+def score_relevance(title: str, relevance_terms: list[str]) -> float:
+    if not title or not relevance_terms:
         return 0.0
-    title_words = set(re.findall(r"[a-zA-Z0-9]+", title.lower()))
-    terms = set(product_terms)
-    matches = len(title_words & terms)
+    title_lower = title.lower()
+    title_words = tokenize_for_match(title)
+    terms = [term.lower() for term in relevance_terms]
+    matches = 0
+    for term in terms:
+        term_words = set(re.findall(r"[a-zA-Z0-9]+", term))
+        if term in title_lower or (term_words and term_words <= title_words):
+            matches += 1
     return matches / max(len(terms), 1)
 
 
-def score_bsr_ranks(ranks: list[dict[str, Any]], product_terms: list[str]) -> float:
+def score_bsr_ranks(
+    ranks: list[dict[str, Any]],
+    relevance_terms: list[str],
+    target_categories: list[str] | None = None,
+) -> float:
     if not ranks:
         return 0.0
     best = 0.0
-    terms = set(product_terms)
+    target_categories = target_categories or []
+    terms = [term.lower() for term in relevance_terms]
+    targets = [target.lower() for target in target_categories]
     for item in ranks:
         rank = item.get("rank") or 0
         if rank <= 0:
             continue
-        category_words = set(re.findall(r"[a-zA-Z0-9]+", str(item.get("category", "")).lower()))
-        category_relevance = len(category_words & terms) / max(len(terms), 1) if terms else 0.0
+        category = str(item.get("category", "")).lower()
+        category_words = tokenize_for_match(category)
+        target_match = any(target and target in category for target in targets)
+        term_matches = 0
+        for term in terms:
+            term_words = set(re.findall(r"[a-zA-Z0-9]+", term))
+            if term in category or (term_words and term_words <= category_words):
+                term_matches += 1
+        category_relevance = term_matches / max(len(terms), 1) if terms else 0.0
         specificity = min(len(category_words) / 3, 1.0)
         rank_score = max(0.0, 1.0 - (math.log10(rank) / 5))
-        weighted = rank_score * (0.55 + category_relevance * 0.25 + specificity * 0.20)
+        if target_match:
+            category_weight = 1.0
+        else:
+            category_weight = 0.45 + category_relevance * 0.25 + specificity * 0.15
+        weighted = rank_score * min(category_weight, 1.0)
         best = max(best, weighted)
     return min(best, 1.0)
 
 
 def rank_candidates(
     candidates: list[dict[str, Any]],
-    product_terms: list[str],
+    relevance_terms: list[str],
+    target_categories: list[str] | None = None,
     desired_count: int = 5,
 ) -> list[dict[str, Any]]:
     ranked: list[dict[str, Any]] = []
+    target_categories = target_categories or []
     for item in candidates:
-        relevance = score_relevance(item.get("title", ""), product_terms)
+        relevance = score_relevance(item.get("title", ""), relevance_terms)
         bought = item.get("boughtInPastMonth") or 0
         bought_score = min(math.log10(bought + 1) / 4, 1.0)
         rating = item.get("rating") or 0
         rating_score = max(0.0, min(rating / 5, 1.0))
         reviews = item.get("reviews") or 0
         review_score = min(math.log10(reviews + 1) / 4, 1.0)
-        bsr_score = score_bsr_ranks(item.get("bestSellerRanks", []), product_terms)
+        bsr_score = score_bsr_ranks(item.get("bestSellerRanks", []), relevance_terms, target_categories)
         completeness = 0.0
         if item.get("title"):
             completeness += 0.25
@@ -414,12 +526,12 @@ def rank_candidates(
         if item.get("description"):
             completeness += 0.10
         score = (
-            relevance * 0.25
-            + bought_score * 0.25
-            + bsr_score * 0.25
+            bsr_score * 0.35
+            + bought_score * 0.30
+            + relevance * 0.12
             + ((rating_score + review_score) / 2) * 0.10
             + completeness * 0.10
-            + (0.05 if item.get("hasBoughtSignal") else 0.0)
+            + (0.03 if item.get("hasBoughtSignal") else 0.0)
         )
         copy = dict(item)
         copy["selectionScore"] = round(score, 4)
@@ -459,28 +571,29 @@ def rank_candidates(
 def collect_competitors(brief: dict[str, Any]) -> dict[str, Any]:
     marketplace = normalize_marketplace(brief.get("marketplace"))
     domain = marketplace["domain"]
-    terms = product_terms_from_brief(brief)
-    queries = generate_search_queries(brief)
+    accept_language = marketplace.get("acceptLanguage", "en-US,en;q=0.9")
+    relevance_terms = relevance_terms_from_brief(brief)
+    target_categories = target_categories_from_brief(brief)
+    queries = resolve_search_queries(brief)
+    detail_limit = int(brief.get("detailPageLimit") or 32)
     cache_dir = Path(__file__).resolve().parent.parent / ".cache"
     candidate_map: dict[str, dict[str, Any]] = {}
     fetch_log: list[dict[str, Any]] = []
 
     for query in queries:
         search_url = f"https://www.{domain}/s?k={quote_plus(query)}"
-        result = fetch_url(search_url, cache_dir / "search")
+        result = fetch_url(search_url, cache_dir / "search", accept_language=accept_language)
         fetch_log.append({"url": search_url, "fetcher": result.fetcher, "status": result.status, "error": result.error})
         if result.html and not is_blocked_page(result.html):
             for candidate in parse_search_results(result.html, domain):
                 candidate.setdefault("query", query)
                 candidate_map.setdefault(candidate["asin"], candidate)
         time.sleep(0.7)
-        if len(candidate_map) >= 15:
-            break
 
     candidates = list(candidate_map.values())
     candidates.sort(key=lambda item: (item.get("boughtInPastMonth") or 0, item.get("reviews") or 0), reverse=True)
     listings: list[dict[str, Any]] = []
-    for candidate in candidates[:16]:
+    for candidate in candidates[:detail_limit]:
         asin = candidate["asin"]
         urls = [
             candidate.get("url") or f"https://www.{domain}/dp/{asin}",
@@ -490,7 +603,7 @@ def collect_competitors(brief: dict[str, Any]) -> dict[str, Any]:
         ]
         listing = None
         for url in dict.fromkeys(urls):
-            result = fetch_url(url, cache_dir / "listing")
+            result = fetch_url(url, cache_dir / "listing", accept_language=accept_language)
             fetch_log.append({"url": url, "fetcher": result.fetcher, "status": result.status, "error": result.error})
             if result.html and not is_blocked_page(result.html):
                 parsed = parse_listing_html(result.html, asin, url)
@@ -504,14 +617,17 @@ def collect_competitors(brief: dict[str, Any]) -> dict[str, Any]:
             time.sleep(0.7)
         if listing:
             listings.append(listing)
-        if len(rank_candidates(listings, terms, 5)) >= 5:
+        if len(listings) >= detail_limit:
             break
 
-    selected = rank_candidates(listings, terms, 5)
+    selected = rank_candidates(listings, relevance_terms, target_categories, 5)
     return {
         "marketplace": marketplace,
         "productBrief": brief,
         "searchQueries": queries,
+        "querySource": "model_supplied" if normalize_list(brief.get("researchQueries") or brief.get("searchQueries") or brief.get("queries")) else "fallback_generated",
+        "relevanceTerms": relevance_terms,
+        "targetCategories": target_categories,
         "effectiveCompetitorCount": len(selected),
         "competitors": selected,
         "candidateCount": len(candidates),

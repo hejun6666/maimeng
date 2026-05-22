@@ -8,18 +8,24 @@ from amazon_collect_brief import (
     parse_listing_html,
     parse_search_results,
     rank_candidates,
+    relevance_terms_from_brief,
+    resolve_search_queries,
+    target_categories_from_brief,
 )
 
 
 def test_marketplace_normalization():
     assert normalize_marketplace("US")["domain"] == "amazon.com"
     assert normalize_marketplace("ca")["domain"] == "amazon.ca"
+    assert normalize_marketplace("UK")["domain"] == "amazon.co.uk"
+    assert normalize_marketplace("amazon.de")["domain"] == "amazon.de"
     assert normalize_marketplace(None)["code"] == "US"
 
 
 def test_bought_count_parsing():
     assert extract_bought_count("1K+ bought in past month") == 1000
     assert extract_bought_count("500+ bought in past month") == 500
+    assert extract_bought_count("1.000+ Mal im letzten Monat gekauft") == 1000
     assert extract_bought_count("No badge here") is None
 
 
@@ -34,6 +40,21 @@ def test_bsr_rank_parsing():
         {"rank": 396, "category": "Baby"},
         {"rank": 2, "category": "Baby Playards"},
     ]
+    german = extract_bsr_ranks("Amazon Bestseller-Rang: Nr. 1 in Textmarker")
+    assert german == [{"rank": 1, "category": "Textmarker"}]
+
+
+def test_model_supplied_research_inputs_take_priority():
+    brief = {
+        "marketplace": "DE",
+        "product": "荧光笔",
+        "researchQueries": ["Textmarker", "Leuchtmarker", "Textmarker", "highlighter pens"],
+        "relevanceTerms": ["textmarker", "leuchtmarker", "highlighter"],
+        "targetCategories": ["Textmarker", "Marker & Textmarker"],
+    }
+    assert resolve_search_queries(brief) == ["Textmarker", "Leuchtmarker", "highlighter pens"]
+    assert relevance_terms_from_brief(brief) == ["textmarker", "leuchtmarker", "highlighter"]
+    assert target_categories_from_brief(brief) == ["Textmarker", "Marker & Textmarker"]
 
 
 def test_search_result_parsing():
@@ -76,19 +97,54 @@ def test_listing_parsing_and_ranking():
     assert listing["bestSellerRanks"][1]["category"] == "Baby Playards"
     ranked = rank_candidates(
         [listing],
-        product_terms=["baby", "playpen", "foldable", "mat"],
+        relevance_terms=["baby", "playpen", "foldable", "mat"],
+        target_categories=["Baby Playards"],
         desired_count=1,
     )
     assert ranked[0]["selectionScore"] > 0
     assert ranked[0]["bestSellerRankScore"] > 0
 
 
+def test_bsr_and_bought_drive_competitor_selection():
+    strong_category = {
+        "asin": "B0STRONG001",
+        "title": "Aesthetic Highlighter Pens Chisel Tip Assorted Colors",
+        "boughtInPastMonth": 10000,
+        "bestSellerRanks": [{"rank": 2, "category": "Liquid Highlighters"}],
+        "rating": 4.6,
+        "reviews": 800,
+        "bulletCount": 5,
+        "price": "8.99",
+        "imageCount": 8,
+    }
+    review_heavy = {
+        "asin": "B0REVIEWS01",
+        "title": "Generic Office Marker Pens",
+        "boughtInPastMonth": None,
+        "bestSellerRanks": [{"rank": 1200, "category": "Office Products"}],
+        "rating": 4.8,
+        "reviews": 50000,
+        "bulletCount": 5,
+        "price": "5.99",
+        "imageCount": 8,
+    }
+    ranked = rank_candidates(
+        [review_heavy, strong_category],
+        relevance_terms=["highlighter", "marker"],
+        target_categories=["Liquid Highlighters"],
+        desired_count=2,
+    )
+    assert ranked[0]["asin"] == "B0STRONG001"
+
+
 def main():
     test_marketplace_normalization()
     test_bought_count_parsing()
     test_bsr_rank_parsing()
+    test_model_supplied_research_inputs_take_priority()
     test_search_result_parsing()
     test_listing_parsing_and_ranking()
+    test_bsr_and_bought_drive_competitor_selection()
     print("self_test: OK")
 
 
