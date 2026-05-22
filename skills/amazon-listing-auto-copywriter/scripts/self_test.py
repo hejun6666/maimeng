@@ -206,6 +206,60 @@ def test_relevance_guardrail_blocks_wrong_category_winner():
     assert [item["asin"] for item in ranked] == ["B0HIGHLIGHT"]
 
 
+def test_relevance_guardrail_requires_more_than_broad_category_overlap():
+    broad_baby_bestseller = {
+        "asin": "B0BABYBOTTLE",
+        "title": "Baby Bottle Set with Cleaning Brush",
+        "query": "baby playpen",
+        "boughtInPastMonth": 20000,
+        "hasBoughtSignal": True,
+        "bestSellerRanks": [{"rank": 1, "category": "Baby"}],
+        "rating": 4.8,
+        "reviews": 50000,
+        "bulletCount": 5,
+        "price": "12.99",
+        "imageCount": 8,
+    }
+    relevant_playpen = {
+        "asin": "B0PLAYPEN01",
+        "title": "Foldable Baby Playpen with Mat",
+        "query": "baby playpen",
+        "boughtInPastMonth": 500,
+        "hasBoughtSignal": True,
+        "bestSellerRanks": [{"rank": 20, "category": "Baby Playards"}],
+        "rating": 4.5,
+        "reviews": 700,
+        "bulletCount": 5,
+        "price": "89.99",
+        "imageCount": 8,
+    }
+    ranked = rank_candidates(
+        [broad_baby_bestseller, relevant_playpen],
+        relevance_terms=["baby", "playpen", "foldable", "mat"],
+        target_categories=["Baby Playards"],
+        desired_count=2,
+    )
+    assert [item["asin"] for item in ranked] == ["B0PLAYPEN01"]
+
+
+def test_rank_candidates_does_not_mutate_input_candidates():
+    candidate = {
+        "asin": "B0HIGHLIGHT",
+        "title": "Chisel Tip Highlighter Pens",
+        "query": "highlighter pens",
+        "boughtInPastMonth": 1000,
+        "hasBoughtSignal": True,
+        "bestSellerRanks": [{"rank": 3, "category": "Liquid Highlighters"}],
+        "rating": 4.6,
+        "reviews": 300,
+        "bulletCount": 5,
+        "price": "7.99",
+        "imageCount": 8,
+    }
+    rank_candidates([candidate], ["highlighter", "chisel tip"], ["Liquid Highlighters"], 1)
+    assert "guardrailRelevanceScore" not in candidate
+
+
 def test_fetch_url_passes_accept_language_to_scrapling(monkeypatch=None):
     import amazon_collect_brief as module
 
@@ -241,6 +295,8 @@ def main():
     test_listing_parsing_and_ranking()
     test_bsr_and_bought_drive_competitor_selection()
     test_relevance_guardrail_blocks_wrong_category_winner()
+    test_relevance_guardrail_requires_more_than_broad_category_overlap()
+    test_rank_candidates_does_not_mutate_input_candidates()
     test_fetch_url_passes_accept_language_to_scrapling()
     print("self_test: OK")
 

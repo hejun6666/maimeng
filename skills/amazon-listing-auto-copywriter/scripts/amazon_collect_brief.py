@@ -519,22 +519,69 @@ def score_category_relevance(
     return matches / max(len(relevance_terms), 1)
 
 
+def count_relevance_term_matches(text: str, relevance_terms: list[str]) -> int:
+    if not text or not relevance_terms:
+        return 0
+    text_lower = text.lower()
+    text_words = tokenize_for_match(text)
+    matches = 0
+    for term in [term.lower() for term in relevance_terms]:
+        term_words = set(re.findall(r"[a-zA-Z0-9]+", term))
+        if term in text_lower or (term_words and term_words <= text_words):
+            matches += 1
+    return matches
+
+
+def category_text_from_ranks(ranks: list[dict[str, Any]]) -> str:
+    return " ".join(str(item.get("category", "")) for item in ranks).lower()
+
+
+def has_exact_target_category_match(
+    ranks: list[dict[str, Any]],
+    target_categories: list[str] | None = None,
+) -> bool:
+    categories = category_text_from_ranks(ranks)
+    return any(target and target.lower() in categories for target in (target_categories or []))
+
+
+def relevance_guardrail_result(
+    item: dict[str, Any],
+    relevance_terms: list[str],
+    target_categories: list[str] | None = None,
+) -> tuple[bool, float]:
+    if not relevance_terms and not target_categories:
+        return True, 0.0
+    ranks = item.get("bestSellerRanks", [])
+    title_relevance = score_relevance(str(item.get("title", "")), relevance_terms)
+    category_relevance = score_category_relevance(
+        ranks,
+        relevance_terms,
+        target_categories,
+    )
+    guardrail_score = round(max(title_relevance, category_relevance), 4)
+    if has_exact_target_category_match(ranks, target_categories):
+        return True, guardrail_score
+
+    title_matches = count_relevance_term_matches(str(item.get("title", "")), relevance_terms)
+    category_matches = count_relevance_term_matches(category_text_from_ranks(ranks), relevance_terms)
+    if len(relevance_terms) == 1:
+        return (title_matches > 0 or category_matches > 0), guardrail_score
+
+    passes = (
+        title_relevance >= 0.5
+        or title_matches >= 2
+        or (category_relevance >= 0.5 and category_matches >= 2)
+    )
+    return passes, guardrail_score
+
+
 def passes_relevance_guardrail(
     item: dict[str, Any],
     relevance_terms: list[str],
     target_categories: list[str] | None = None,
 ) -> bool:
-    if not relevance_terms and not target_categories:
-        return True
-    title_relevance = score_relevance(str(item.get("title", "")), relevance_terms)
-    category_relevance = score_category_relevance(
-        item.get("bestSellerRanks", []),
-        relevance_terms,
-        target_categories,
-    )
-    query_relevance = score_relevance(str(item.get("query", "")), relevance_terms)
-    item["guardrailRelevanceScore"] = round(max(title_relevance, category_relevance, query_relevance), 4)
-    return title_relevance > 0 or category_relevance > 0
+    passes, _guardrail_score = relevance_guardrail_result(item, relevance_terms, target_categories)
+    return passes
 
 
 def score_bsr_ranks(
@@ -581,9 +628,11 @@ def rank_candidates(
     ranked: list[dict[str, Any]] = []
     target_categories = target_categories or []
     for item in candidates:
-        if not passes_relevance_guardrail(item, relevance_terms, target_categories):
+        passes_guardrail, guardrail_score = relevance_guardrail_result(item, relevance_terms, target_categories)
+        if not passes_guardrail:
             continue
         relevance = score_relevance(item.get("title", ""), relevance_terms)
+        query_relevance = score_relevance(str(item.get("query", "")), relevance_terms)
         bought = item.get("boughtInPastMonth") or 0
         bought_score = min(math.log10(bought + 1) / 4, 1.0)
         rating = item.get("rating") or 0
@@ -615,6 +664,8 @@ def rank_candidates(
         copy = dict(item)
         copy["selectionScore"] = round(score, 4)
         copy["relevanceScore"] = round(relevance, 4)
+        copy["queryRelevanceScore"] = round(query_relevance, 4)
+        copy["guardrailRelevanceScore"] = guardrail_score
         copy["bestSellerRankScore"] = round(bsr_score, 4)
         ranked.append(copy)
 
