@@ -344,19 +344,37 @@ def generate_search_queries(brief: dict[str, Any], limit: int = 8) -> list[str]:
     return output[:limit]
 
 
-def try_scrapling(url: str, mode: str = "fetcher") -> FetchResult | None:
+def try_scrapling(
+    url: str,
+    mode: str = "fetcher",
+    accept_language: str = "en-US,en;q=0.9",
+) -> FetchResult | None:
     try:
         from scrapling.fetchers import DynamicFetcher, Fetcher, StealthyFetcher  # type: ignore
     except Exception:
         return None
 
+    headers = {
+        "Accept-Language": accept_language,
+        "User-Agent": random.choice(USER_AGENTS),
+    }
+
     try:
-        if mode == "stealth":
-            page = StealthyFetcher.fetch(url, headless=True, timeout=30000)
-        elif mode == "dynamic":
-            page = DynamicFetcher.fetch(url, headless=True, timeout=30000)
-        else:
-            page = Fetcher.get(url, timeout=30)
+        try:
+            if mode == "stealth":
+                page = StealthyFetcher.fetch(url, headless=True, timeout=30000, headers=headers)
+            elif mode == "dynamic":
+                page = DynamicFetcher.fetch(url, headless=True, timeout=30000, headers=headers)
+            else:
+                page = Fetcher.get(url, timeout=30, headers=headers)
+        except TypeError:
+            if mode == "stealth":
+                page = StealthyFetcher.fetch(url, headless=True, timeout=30000)
+            elif mode == "dynamic":
+                page = DynamicFetcher.fetch(url, headless=True, timeout=30000)
+            else:
+                page = Fetcher.get(url, timeout=30)
+
         body = getattr(page, "body", b"")
         if isinstance(body, bytes):
             html = body.decode(getattr(page, "encoding", None) or "utf-8", errors="ignore")
@@ -384,7 +402,7 @@ def fetch_url(
             return FetchResult(url=url, html=cached.read_text(encoding="utf-8", errors="ignore"), fetcher="cache")
 
     for mode in ("fetcher", "dynamic", "stealth"):
-        result = try_scrapling(url, mode)
+        result = try_scrapling(url, mode, accept_language=accept_language)
         if result and result.html and not is_blocked_page(result.html):
             if cache_dir:
                 (cache_dir / cache_key).write_text(result.html, encoding="utf-8")
