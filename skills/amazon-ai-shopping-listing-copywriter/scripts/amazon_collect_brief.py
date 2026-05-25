@@ -8,6 +8,7 @@ recommended; the script falls back to Python's standard library fetcher.
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 import random
@@ -394,7 +395,9 @@ def fetch_url(
     force: bool = False,
     accept_language: str = "en-US,en;q=0.9",
 ) -> FetchResult:
-    cache_key = re.sub(r"[^a-zA-Z0-9]+", "_", url)[:180] + ".html"
+    cache_prefix = re.sub(r"[^a-zA-Z0-9]+", "_", url)[:80].strip("_")
+    cache_digest = hashlib.sha1(url.encode("utf-8")).hexdigest()[:16]
+    cache_key = f"{cache_prefix}_{cache_digest}.html"
     if cache_dir:
         cache_dir.mkdir(parents=True, exist_ok=True)
         cached = cache_dir / cache_key
