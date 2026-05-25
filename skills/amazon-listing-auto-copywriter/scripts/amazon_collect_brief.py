@@ -596,12 +596,45 @@ def category_text_from_ranks(ranks: list[dict[str, Any]]) -> str:
     return " ".join(str(item.get("category", "")) for item in ranks).lower()
 
 
+def is_broad_category_name(category: str) -> bool:
+    normalized = re.sub(r"[^a-z0-9]+", " ", category.lower()).strip()
+    broad_categories = {
+        "baby",
+        "beauty",
+        "books",
+        "clothing",
+        "electronics",
+        "grocery",
+        "health",
+        "home",
+        "kitchen",
+        "men",
+        "office products",
+        "pet supplies",
+        "pets",
+        "shoes",
+        "sports",
+        "tools",
+        "toys",
+        "women",
+    }
+    return normalized in broad_categories
+
+
 def has_exact_target_category_match(
     ranks: list[dict[str, Any]],
     target_categories: list[str] | None = None,
 ) -> bool:
-    categories = category_text_from_ranks(ranks)
-    return any(target and target.lower() in categories for target in (target_categories or []))
+    if not ranks or not target_categories:
+        return False
+    rank_categories = [str(item.get("category", "")).lower() for item in ranks]
+    for target in target_categories:
+        target_lower = str(target).strip().lower()
+        if not target_lower or is_broad_category_name(target_lower):
+            continue
+        if any(target_lower == category or target_lower in category for category in rank_categories):
+            return True
+    return False
 
 
 def relevance_guardrail_result(

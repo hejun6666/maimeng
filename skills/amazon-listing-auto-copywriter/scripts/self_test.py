@@ -252,6 +252,42 @@ def test_relevance_guardrail_requires_more_than_broad_category_overlap():
     assert [item["asin"] for item in ranked] == ["B0PLAYPEN01"]
 
 
+def test_relevance_guardrail_rejects_broad_target_category_only_match():
+    broad_baby_bestseller = {
+        "asin": "B0BABYBOTTLE",
+        "title": "Baby Bottle Set with Cleaning Brush",
+        "query": "baby playpen",
+        "boughtInPastMonth": 20000,
+        "hasBoughtSignal": True,
+        "bestSellerRanks": [{"rank": 1, "category": "Baby"}],
+        "rating": 4.8,
+        "reviews": 50000,
+        "bulletCount": 5,
+        "price": "12.99",
+        "imageCount": 8,
+    }
+    relevant_playpen = {
+        "asin": "B0PLAYPEN01",
+        "title": "Foldable Baby Playpen with Mat",
+        "query": "baby playpen",
+        "boughtInPastMonth": 500,
+        "hasBoughtSignal": True,
+        "bestSellerRanks": [{"rank": 20, "category": "Baby Playards"}],
+        "rating": 4.5,
+        "reviews": 700,
+        "bulletCount": 5,
+        "price": "89.99",
+        "imageCount": 8,
+    }
+    ranked = rank_candidates(
+        [broad_baby_bestseller, relevant_playpen],
+        relevance_terms=["baby", "playpen", "foldable", "mat"],
+        target_categories=["Baby"],
+        desired_count=2,
+    )
+    assert [item["asin"] for item in ranked] == ["B0PLAYPEN01"]
+
+
 def test_rank_candidates_does_not_mutate_input_candidates():
     candidate = {
         "asin": "B0HIGHLIGHT",
@@ -307,6 +343,7 @@ def main():
     test_bsr_and_bought_drive_competitor_selection()
     test_relevance_guardrail_blocks_wrong_category_winner()
     test_relevance_guardrail_requires_more_than_broad_category_overlap()
+    test_relevance_guardrail_rejects_broad_target_category_only_match()
     test_rank_candidates_does_not_mutate_input_candidates()
     test_fetch_url_passes_accept_language_to_scrapling()
     print("self_test: OK")
