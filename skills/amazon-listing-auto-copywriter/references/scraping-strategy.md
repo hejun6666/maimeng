@@ -30,7 +30,7 @@ Prefer products with both Amazon front-end `bought in past month` signals and st
 
 If fewer than 5 competitors have both signals, supplement with highly relevant, high-review, high-rating, image-rich, complete listings. Label which products have public monthly-bought signals, which have BSR signals, and which were selected mainly for listing completeness.
 
-Use relevance primarily as a guardrail against wrong products. Do not let title keyword overlap outrank strong category-level BSR and bought-past-month signals.
+Use relevance as a hard guardrail against wrong products before ranking. A candidate should pass through when its title or BSR category matches `relevanceTerms` or `targetCategories`. Do not let an unrelated product win only because it has strong BSR or bought-past-month signals. Among relevant products, do not let weak title keyword overlap outrank strong matching-category BSR and bought-past-month signals.
 
 Do not describe `bought in past month` as exact monthly sales. Call it `Amazon front-end public sales heat` or `Amazon displayed bought-past-month signal`.
 

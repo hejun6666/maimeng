@@ -60,7 +60,7 @@ Turn a user's rough product description into an Amazon-ready copy package for Am
    - Codex must generate `researchQueries`, `relevanceTerms`, and `targetCategories` before running the script.
    - The script must not be used as the market-understanding layer. Do not rely on it to discover local buyer search terms from a raw Chinese product name.
    - `researchQueries`: marketplace-local Amazon search terms. Use 5-12 queries covering product type, attribute terms, use cases, synonyms, and buyer language.
-   - `relevanceTerms`: short terms used only to filter obvious mismatches and score title/category relevance. Relevance is a guardrail, not the main ranking brain.
+   - `relevanceTerms`: short terms used to reject obvious mismatches before final ranking and to score title/category relevance. Relevance is a guardrail, not the main ranking brain.
    - `targetCategories`: likely BSR subcategories. Matching specific subcategory ranks should be weighted heavily when found.
    - US/CA: use English queries.
    - UK: use English queries with light British localisation, such as `colour`, `organise`, and `school stationery` when natural.
@@ -76,6 +76,7 @@ Turn a user's rough product description into an Amazon-ready copy package for Am
      - parse `Best Sellers Rank` / BSR category rank when available, especially specific subcategory ranks such as `#2 in Baby Playards`
      - visit candidate detail pages
      - extract title, bullets, price, rating, review count, image count, public sales heat, and BSR signals
+     - reject candidates whose title and BSR categories do not match `relevanceTerms` or `targetCategories`, even if they have strong BSR or bought-past-month signals
      - rank competitors primarily by BSR/subcategory rank and public sales heat, then relevance, review signals, listing completeness, and diversity
      - keep 5 effective competitors
    - Prefer competitors with both Amazon front-end bought-past-month signals and strong BSR/subcategory rank signals.
