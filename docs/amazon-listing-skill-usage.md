@@ -2,6 +2,8 @@
 
 这份文档给运营同事使用。你不需要懂代码，只要照着下面的话术在 Codex 里输入即可。
 
+> 维护说明：这个 Markdown 是 git 中的手册源文件。后续如需 Word 版，只单独生成给使用者，不提交到 git；不再生成 PDF。
+
 ## 这个 Skill 是干什么的
 
 `amazon-listing-auto-copywriter` 用来生成 Amazon US / CA / UK / DE 站点的商品 Listing 文案。

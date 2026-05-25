@@ -3,3 +3,8 @@ __pycache__/
 *.pyc
 .DS_Store
 ~$*.docx
+
+# Generated local operator manuals; keep source docs in git instead.
+docs/*.docx
+docs/*.pdf
+!docs/*.md
