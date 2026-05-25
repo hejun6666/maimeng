@@ -145,7 +145,7 @@ Do not call this a guarantee of AI recommendation. Call it **AI Shopping Readine
      4. scenarios, audience segments, giftability, or comparison context
      5. included items, value, care, support, limitations, or differentiation
    - For enhanced titles, use keyword + audience/scenario + key attribute/result language, not keyword stuffing alone.
-   - The product description should read like a short buying-guide answer: who it is for, what problem it solves, why the attributes matter, and what the operator still must verify if facts are unknown.
+   - The product description should read like a short buying-guide answer: who it is for, what problem it solves, and why the attributes matter. Do not mention operator verification or unknown facts inside the marketplace-language copy block.
    - Immediately after the marketplace-language copy, provide **Chinese Copy Reference / 中文文案对照** with a complete one-to-one Chinese translation of each field. This section is for operator reading only and is not Amazon copy.
    - Chinese copy reference must translate the marketplace-language copy directly and fully:
      - Translate the title as one title.

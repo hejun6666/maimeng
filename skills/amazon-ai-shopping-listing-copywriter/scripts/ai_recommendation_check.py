@@ -33,6 +33,12 @@ SIGNAL_TERMS = {
     "attributes": ["features", "materials", "size", "capacity", "quantity", "compatibility", "accessories"],
 }
 
+ATTRIBUTE_MAP_ALIASES = {
+    "product_type": {"producttype", "product_type", "product", "category", "type"},
+    "audience": {"audience", "targetuser", "targetusers", "user", "users", "buyer", "buyers"},
+    "scenarios": {"scenario", "scenarios", "usecase", "usecases", "uses", "occasions"},
+}
+
 
 def normalize_text(value: Any) -> str:
     if isinstance(value, list):
@@ -69,6 +75,19 @@ def listify(value: Any) -> list[str]:
     return []
 
 
+def attribute_map_values(attribute_map: dict[str, Any], signal_name: str) -> list[str]:
+    values: list[str] = []
+    aliases = ATTRIBUTE_MAP_ALIASES.get(signal_name, set())
+    for key, value in attribute_map.items():
+        normalized_key = re.sub(r"[^a-z0-9]+", "", str(key).lower())
+        if signal_name == "attributes" or normalized_key in aliases:
+            if isinstance(value, list):
+                values.extend(normalize_text(item) for item in value)
+            elif value:
+                values.append(normalize_text(value))
+    return values
+
+
 def check_question_coverage(copy_text: str, questions: list[str]) -> tuple[int, list[str]]:
     covered = 0
     missing: list[str] = []
@@ -91,6 +110,7 @@ def check_payload(payload: dict[str, Any]) -> dict[str, Any]:
     description = normalize_text(payload.get("description"))
     backend = normalize_text(payload.get("backendSearchTerms") or payload.get("backend"))
     brief = payload.get("productBrief") if isinstance(payload.get("productBrief"), dict) else payload
+    attribute_map = payload.get("attributeEntityMap") if isinstance(payload.get("attributeEntityMap"), dict) else {}
     copy_text = normalize_text([title, bullets, description, backend])
 
     warnings: list[dict[str, Any]] = []
@@ -134,6 +154,7 @@ def check_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 values.extend(normalize_text(item) for item in value)
             elif value:
                 values.append(normalize_text(value))
+        values.extend(attribute_map_values(attribute_map, signal_name))
         values = [value for value in values if value]
         if values and not any(contains_phrase_or_tokens(copy_text, value) for value in values[:6]):
             missing_signals.append(signal_name)

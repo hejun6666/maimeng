@@ -13,7 +13,8 @@ Examples: baby products, children's products, electronics, automotive accessorie
 Rules:
 
 - Treat safety, age range, compatibility, materials, and certifications as facts requiring verification.
-- Do not write `100% safe`, `prevents injury`, `childproof`, `BPA-free`, `CPC certified`, `UL listed`, `waterproof`, or similar claims unless provided by the user or marked `[待核实: ...]` in enhanced copy.
+- Do not write `100% safe`, `prevents injury`, `childproof`, `BPA-free`, `CPC certified`, `UL listed`, `waterproof`, or similar claims unless provided by the user as confirmed facts.
+- Put likely but unconfirmed safety, age range, compatibility, material, or certification claims in the Chinese operator verification checklist, not in the marketplace-language copy block.
 
 ## High-Risk Categories
 
@@ -23,9 +24,8 @@ Rules:
 
 - Use conservative language.
 - Do not claim diagnosis, treatment, cure, prevention, FDA approval, medical benefit, toxin-free status, lab certification, waterproof rating, fireproof rating, or guaranteed safety unless explicitly confirmed.
-- Put likely but unconfirmed claims in the verification checklist, not the confirmed copy.
+- Put likely but unconfirmed claims in the verification checklist, not the marketplace-language copy block.
 
 ## Default
 
 If category risk is unclear, treat it as medium-to-high risk.
-

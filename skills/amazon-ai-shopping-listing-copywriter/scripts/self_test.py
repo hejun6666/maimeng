@@ -388,6 +388,35 @@ def test_ai_recommendation_check_rejects_ai_ranking_promises():
     assert "vague_claim" in warning_types
 
 
+def test_ai_recommendation_check_uses_attribute_entity_map():
+    payload = {
+        "title": "Adjustable Laptop Stand for Desk",
+        "bullets": [
+            "Desk Comfort Upgrade: Raises a laptop for daily work and study.",
+            "Foldable Support: Stores neatly between work sessions.",
+            "Ventilated Design: Helps keep desk setups organized.",
+            "Home and Office Use: Fits common work areas.",
+            "Simple Setup: Ready for everyday laptop tasks.",
+        ],
+        "description": "This adjustable laptop stand supports everyday desk work at home, school or the office.",
+        "backendSearchTerms": "laptop stand desk riser office",
+        "attributeEntityMap": {
+            "productType": "notebook platform",
+            "audience": "remote workers",
+            "material": "aluminum alloy",
+        },
+    }
+    result = check_payload(payload)
+    missing = {
+        warning.get("signal")
+        for warning in result["warnings"]
+        if warning["type"] == "missing_ai_readability_signal"
+    }
+    assert "product_type" in missing
+    assert "audience" in missing
+    assert "attributes" in missing
+
+
 def main():
     test_marketplace_normalization()
     test_chinese_marketplace_normalization()
@@ -407,6 +436,7 @@ def main():
     test_fetch_url_passes_accept_language_to_scrapling()
     test_ai_recommendation_check_accepts_readable_copy()
     test_ai_recommendation_check_rejects_ai_ranking_promises()
+    test_ai_recommendation_check_uses_attribute_entity_map()
     print("self_test: OK")
 
 
