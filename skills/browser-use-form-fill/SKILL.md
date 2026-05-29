@@ -25,6 +25,14 @@ Never ask the user to send passwords, SMS/OTP codes, QR approval links, UKey PIN
 
 Use `browser-use` CLI. Do not clone the browser-use repository. Do not write Python scripts unless the user explicitly asks.
 
+Before the first browser action on a user's computer, run the bundled environment check:
+
+```bash
+python skills/browser-use-form-fill/scripts/check_browser_env.py
+```
+
+If this skill is installed outside the repository, resolve the script relative to this `SKILL.md` file. The script checks whether `browser-use` or `uvx` is available and whether Google Chrome, Microsoft Edge, or Chromium is installed. If the script reports `NOT READY`, explain the missing item in plain language and help the user fix that before continuing.
+
 Choose commands in this order:
 
 1. If installed, use `browser-use`.
@@ -43,7 +51,9 @@ browser-use doctor
 
 ## Opening Logged-In Sites
 
-For normal company users, prefer a visible browser using their Chrome login data:
+For normal company users, prefer a visible browser using the browser where they normally log in. Google Chrome and Microsoft Edge are both acceptable.
+
+When the user's normal browser is Chrome, prefer:
 
 ```bash
 browser-use --headed --profile Default open "https://example.com"
@@ -55,7 +65,7 @@ or, without global install:
 uvx --python 3.11 browser-use --headed --profile Default open "https://example.com"
 ```
 
-If that does not show the logged-in account, ask the user to log in manually in the visible browser window. Use profile enumeration or CDP only for technical users who are comfortable with browser setup details.
+When the user's normal browser is Edge, first try the same visible browser workflow. If the opened window does not show the logged-in account, ask the user to log in manually in that visible browser window. Use profile enumeration, custom profile paths, or CDP only for technical users who are comfortable with browser setup details.
 
 If the user insists on an already-open tab, explain briefly that Codex can only control a browser session that browser-use can connect to. Use Chrome remote debugging/CDP only when the user is comfortable with that setup.
 
