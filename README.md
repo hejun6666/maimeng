@@ -32,7 +32,7 @@ https://github.com/hejun6666/maimeng/tree/main/skills/amazon-ai-shopping-listing
 https://github.com/hejun6666/maimeng/tree/main/skills/browser-use-form-fill
 ```
 
-用途：给不懂命令行的公司同事使用，让 Codex 借助 browser-use CLI 打开可见浏览器，把用户提供的数据填到网站、政务/财税平台、CRM、后台系统等网页表单里，填完停住给人工检查。
+用途：给不懂命令行的公司同事使用，让 Codex 借助 browser-use CLI 打开可见浏览器，把用户提供的数据填到网站、政务/财税平台、CRM、后台系统等网页表单里，填完停住给人工检查。内置环境检查脚本，会检测 `browser-use`、`uvx`、Chrome、Edge 或 Chromium。
 
 ## 使用文档
 
