@@ -26,7 +26,7 @@ Use this when the user wants all SKU recommendations, current filtered results, 
 Recommended prompt:
 
 ```text
-请先在 Codex 打开的领星网页进入销售 > Listing 并筛好范围。
+请使用 browser-use 打开或接管用户自己的 Chrome 领星网页，进入销售 > Listing 并筛好范围。
 批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。
 ```
 
@@ -47,17 +47,18 @@ Use this only when the user names one SKU/MSKU/ASIN or asks to inspect one produ
    - If the user gives only a SKU, start single-SKU web-page extraction immediately instead of asking clarifying questions.
    - If the user asks for batch/current filtered results, start from the current Listing page instead of asking for SKUs.
 
-2. Read Lingxing data from the Lingxing web page opened in Codex:
-   - The user should log in and operate inside the Lingxing page opened by Codex. Do not ask the user to paste passwords or account cookies into chat.
-   - Use the Codex browser/browser-use tool for browser work: open Lingxing pages inside Codex, inspect state, search the SKU, scroll tables, screenshot evidence, and extract visible text.
-   - If the browser tool is unavailable or automated extraction needs deterministic parsing, use `scripts/lingxing_capture.py` only as a technical fallback. Do not ask non-technical users to run this helper.
-   - If automated extraction misses fields, continue with Codex web-page inspection of the same pages.
+2. Read Lingxing data from the user's Chrome session through browser-use/CDP:
+   - Use browser-use to open or take over the user's own visible Chrome Lingxing page. Do not assume a hard-coded account, store, cookie, or local username.
+   - The user logs in inside the visible Chrome page controlled by browser-use. Do not ask the user to paste passwords or account cookies into chat.
+   - Use browser-use for browser work: open Lingxing pages, inspect state, search the SKU, scroll tables, screenshot evidence, and extract visible text.
+   - If browser-use is unavailable or automated extraction needs deterministic parsing, use `scripts/lingxing_capture.py` only as a technical fallback through the same user-controlled browser/CDP setup. Do not ask non-technical users to run this helper manually.
+   - If automated extraction misses fields, continue with browser-use/manual inspection of the same visible Chrome pages.
    - Never invent ERP numbers. If access or permissions block extraction, report the blocker and the exact field still needed.
 
 3. Use the core Lingxing pages:
    - `销售 > Listing`: batch entry page and sales source. Capture MSKU/FNSKU, status, ASIN, title, today/yesterday sales, `7|14|30天销量`, category/rank if useful, owner, and visible site/store context.
    - `仓库 > FBA库存明细`: inventory enrichment page. For the Listing SKU set, match FBA total inventory, FBA sellable, and AWD available + inbound total.
-   - In batch mode, try the Listing export/download button first. If export is unavailable, read the DOM/table rows across pages or visible virtual-scroll rows with the Codex browser tool.
+   - In batch mode, try the Listing export/download button first. If export is unavailable, read the DOM/table rows across pages or visible virtual-scroll rows with browser-use.
    - Do not open purchase-order pages in the first-version flow unless the user explicitly asks to consider existing purchase orders.
 
 4. Calculate with `scripts/replenishment_calculator.py`:
@@ -73,7 +74,7 @@ Use this only when the user names one SKU/MSKU/ASIN or asks to inspect one produ
 
 ## Commands
 
-Technical fallback helper to capture Lingxing visible data when the browser tool is not available or when deterministic parsing is useful. This is for Codex/maintainers, not for ordinary colleagues to run manually:
+Technical fallback helper to capture Lingxing visible data when browser-use/CDP is available and deterministic parsing is useful. This is for Codex/maintainers, not for ordinary colleagues to run manually:
 
 ```bash
 python scripts/lingxing_capture.py --sku "FL-DE12GB-A" --out capture.json
@@ -124,7 +125,7 @@ Minimum fields for a normal SKU:
 Recommended batch default:
 
 ```text
-请先在 Codex 打开的领星网页进入销售 > Listing 并筛好范围。
+请使用 browser-use 打开或接管用户自己的 Chrome 领星网页，进入销售 > Listing 并筛好范围。
 批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。
 ```
 

@@ -42,7 +42,7 @@ https://github.com/hejun6666/maimeng/tree/main/skills/browser-use-form-fill
 https://github.com/hejun6666/maimeng/tree/main/skills/lingxing-replenishment-planner
 ```
 
-用途：从 Codex 打开的领星 ERP 网页中读取销售 > Listing 当前筛选结果，批量获取 SKU 销量，再匹配 FBA/AWD 库存，生成补货建议、每周补货参考量和工厂下单建议。
+用途：通过 browser-use 打开或接管用户自己的 Chrome 领星 ERP 网页，读取销售 > Listing 当前筛选结果，批量获取 SKU 销量，再匹配 FBA/AWD 库存，生成补货建议、每周补货参考量和工厂下单建议。
 
 ## 使用文档
 

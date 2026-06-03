@@ -2,17 +2,17 @@
 
 ## 日常批量用法
 
-先在 Codex 打开的领星 ERP 网页里进入 `销售 > Listing`，筛选要分析的范围，例如国家、店铺、在线状态、负责人、品牌或更多筛选。
+先让 Codex 使用 browser-use 打开或接管用户自己的 Chrome 领星 ERP 网页，进入 `销售 > Listing`，筛选要分析的范围，例如国家、店铺、在线状态、负责人、品牌或更多筛选。
 
 然后在 Codex 输入：
 
 ```text
 [$lingxing-replenishment-planner]
-请先在 Codex 打开的领星网页进入销售 > Listing 并筛好范围。
+请使用 browser-use 打开或接管用户自己的 Chrome 领星网页，进入销售 > Listing 并筛好范围。
 批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。
 ```
 
-Codex 会读取当前打开的领星网页筛选结果里的 SKU 销量，再去 `仓库 > FBA库存明细` 匹配 FBA 和 AWD 库存，最后输出批量补货建议表。
+Codex 会通过 browser-use 读取用户 Chrome 里当前领星网页筛选结果的 SKU 销量，再去 `仓库 > FBA库存明细` 匹配 FBA 和 AWD 库存，最后输出批量补货建议表。
 
 ## 临时单 SKU 用法
 

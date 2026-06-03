@@ -2,9 +2,15 @@
 
 ## Browser Access
 
-Use the Lingxing ERP page opened inside Codex. The user logs in on that page; do not ask for passwords, cookies, or hard-coded company account details in chat.
+Use the user's own visible Chrome session controlled by browser-use/CDP. The user logs in on that visible Lingxing page; do not ask for passwords, cookies, or hard-coded company account details in chat.
 
-If automated browser control is unavailable, ask the user to keep the Lingxing page open inside Codex and provide only the specific missing export, screenshot, or field value that blocks the calculation. Do not route non-technical users into developer-only browser setup.
+When the technical fallback helper is used, it expects a browser automation endpoint for that same user-controlled Chrome session, commonly:
+
+```text
+http://127.0.0.1:9222
+```
+
+If automated browser control is unavailable, guide Codex to use browser-use's normal visible-browser flow or ask the user for only the specific missing export, screenshot, or field value that blocks the calculation.
 
 ## Main Pages
 
