@@ -34,9 +34,20 @@ https://github.com/hejun6666/maimeng/tree/main/skills/browser-use-form-fill
 
 用途：给不懂命令行的公司同事使用，让 Codex 借助 browser-use CLI 打开可见浏览器，把用户提供的数据填到网站、政务/财税平台、CRM、后台系统等网页表单里，填完停住给人工检查。内置环境检查脚本，会检测 `browser-use`、`uvx`、Chrome、Edge 或 Chromium。
 
+### 领星 SKU 补货下单助手
+
+安装地址：
+
+```text
+https://github.com/hejun6666/maimeng/tree/main/skills/lingxing-replenishment-planner
+```
+
+用途：从领星 ERP 的销售 > Listing 当前筛选结果批量读取 SKU 销量，再匹配 FBA/AWD 库存，生成补货建议、每周补货参考量和工厂下单建议。
+
 ## 使用文档
 
 - [Amazon Listing 自动文案 Skill 使用说明](docs/amazon-listing-skill-usage.md)
+- [领星 SKU 补货下单助手使用说明](docs/lingxing-replenishment-skill-usage.md)
 
 如需 Word 版手册，用 Codex 单独生成并发送，不纳入 git。
 
