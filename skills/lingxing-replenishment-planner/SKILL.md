@@ -17,6 +17,7 @@ Do not frame the task as only for "operations". The user may be from purchasing,
 
 Use this as the default when the user sounds like they only know normal AI chat, asks "怎么用", clicks the default prompt, or does not mention browser details.
 
+- In this skill, `browser-use` means the open-source Browser Use project/CLI that opens or controls the user's Chrome. It does not mean Codex's built-in Browser plugin.
 - Do not ask the user to understand browser-use, CDP, Chrome profiles, scripts, JSON, CSV, command lines, or exports up front.
 - Explain one action at a time in Chinese.
 - Start by opening or taking over a visible Chrome page through browser-use.
