@@ -12,6 +12,7 @@ import csv
 import io
 import json
 import math
+import sys
 from dataclasses import asdict, dataclass, fields
 from datetime import date
 from typing import Any, Dict, Optional
@@ -288,9 +289,30 @@ def format_batch_csv(results: list[Dict[str, Any]]) -> str:
     return output.getvalue()
 
 
+def write_stdout_text(text: str, *, bom: bool = False) -> None:
+    """Write UTF-8 output regardless of the Windows console codepage."""
+    prefix = "\ufeff" if bom else ""
+    sys.stdout.buffer.write((prefix + text).encode("utf-8"))
+
+
+def write_csv_stdout(csv_text: str) -> None:
+    """Write Excel-friendly UTF-8 CSV regardless of the Windows console codepage."""
+    write_stdout_text(csv_text, bom=True)
+
+
 def format_chinese_report(result: Dict[str, Any]) -> str:
     stock_days = result["current_stock_days"]
     stock_days_text = "无法计算" if stock_days is None else f"{stock_days:.1f} 天"
+    cadence_text = {
+        "weekly": "每周",
+        "monthly": "每月",
+    }.get(result["cadence"], result["cadence"])
+    sales_basis_text = {
+        "30d": "近 30 天销量",
+        "14d": "近 14 天销量",
+        "7d": "近 7 天销量",
+        "missing": "缺少销量数据",
+    }.get(result["sales_basis"], result["sales_basis"])
     risk_text = {
         "critical": "警报：库存可撑天数偏低",
         "reorder": "需要补货：库存低于补货触发线",
@@ -307,10 +329,10 @@ def format_chinese_report(result: Dict[str, Any]) -> str:
         f"- 风险判断：{risk_text}",
         f"- 当前海外库存可覆盖：{stock_days_text}",
         f"- 建议工厂下单量：{result['recommended_factory_order_qty']} 件",
-        f"- {result['cadence']} 节奏下单次补货参考量：{result['steady_replenishment_qty']} 件",
+        f"- {cadence_text}节奏下单次补货参考量：{result['steady_replenishment_qty']} 件",
         "",
         "二、计算依据",
-        f"- 销量口径：{result['sales_basis']}",
+        f"- 销量口径：{sales_basis_text}",
         f"- 基础日均销量：{result['base_daily_sales']:.2f} 件/天",
         f"- 淡旺季/主推倍率：{result['season_multiplier']:.2f}",
         f"- 预测日均销量：{result['forecast_daily_sales']:.2f} 件/天",
@@ -379,11 +401,11 @@ def main() -> int:
         if isinstance(raw, list):
             results = calculate_batch_replenishment(raw)
             if args.format == "csv":
-                print(format_batch_csv(results), end="")
+                write_csv_stdout(format_batch_csv(results))
             elif args.format == "text":
-                print("\n\n---\n\n".join(format_chinese_report(result) for result in results))
+                write_stdout_text("\n\n---\n\n".join(format_chinese_report(result) for result in results) + "\n")
             else:
-                print(json.dumps(results, ensure_ascii=False, indent=2))
+                write_stdout_text(json.dumps(results, ensure_ascii=False, indent=2) + "\n")
             return 0
         data = input_from_mapping(raw)
     else:
@@ -419,11 +441,11 @@ def main() -> int:
 
     result = calculate_replenishment(data)
     if args.format == "csv":
-        print(format_batch_csv([result]), end="")
+        write_csv_stdout(format_batch_csv([result]))
     elif args.format == "text":
-        print(format_chinese_report(result))
+        write_stdout_text(format_chinese_report(result) + "\n")
     else:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        write_stdout_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
     return 0
 
 

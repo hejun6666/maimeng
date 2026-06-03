@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Best-effort Lingxing ERP data capture via an already logged-in Chrome.
+"""Technical fallback for best-effort Lingxing ERP data capture.
 
-This script does not know company accounts or passwords. It connects to a local
-Chrome CDP endpoint, opens Lingxing pages, tries to search the SKU, scrolls
-dynamic tables horizontally, and returns visible text plus parsed common fields.
+Normal colleagues should use the Lingxing web page opened inside Codex, not
+this script. This script does not know company accounts or passwords. It
+connects to a browser automation endpoint, opens Lingxing pages, tries to search
+the SKU, scrolls dynamic tables horizontally, and returns visible text plus
+parsed common fields.
 """
 
 from __future__ import annotations

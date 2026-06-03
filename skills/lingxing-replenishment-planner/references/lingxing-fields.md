@@ -2,15 +2,9 @@
 
 ## Browser Access
 
-Use the current user's logged-in Lingxing ERP browser session. Do not store credentials or hard-code company account details.
+Use the Lingxing ERP page opened inside Codex. The user logs in on that page; do not ask for passwords, cookies, or hard-coded company account details in chat.
 
-If CDP is available, the helper script can connect to:
-
-```text
-http://127.0.0.1:9222
-```
-
-If CDP is unavailable, guide the user to open Chrome with remote debugging or use the local browser-control tool available in the current Codex environment.
+If automated browser control is unavailable, ask the user to keep the Lingxing page open inside Codex and provide only the specific missing export, screenshot, or field value that blocks the calculation. Do not route non-technical users into developer-only browser setup.
 
 ## Main Pages
 

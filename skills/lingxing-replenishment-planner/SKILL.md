@@ -26,6 +26,7 @@ Use this when the user wants all SKU recommendations, current filtered results, 
 Recommended prompt:
 
 ```text
+请先在 Codex 打开的领星网页进入销售 > Listing 并筛好范围。
 批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。
 ```
 
@@ -43,20 +44,20 @@ Use this only when the user names one SKU/MSKU/ASIN or asks to inspect one produ
    - If the user already provided promoted/main-push status, sales stability, product season, production days, freight wait, or shipping days, use those values.
    - Do not ask for a large parameter sheet up front. First read Lingxing by SKU, then ask only the one or two missing decisions that materially affect the calculation.
    - Never make the normal user fill current month, site/store, replenishment frequency, inbound delay, safety stock, stock ceiling, target stock days, MOQ, case pack, purchase-order inclusion, stockout, clearance, new-product status, promotion, ad changes, or similar fields before ERP extraction.
-   - If the user gives only a SKU, start single-SKU browser extraction immediately instead of asking clarifying questions.
+   - If the user gives only a SKU, start single-SKU web-page extraction immediately instead of asking clarifying questions.
    - If the user asks for batch/current filtered results, start from the current Listing page instead of asking for SKUs.
 
-2. Read Lingxing data from the current user's logged-in browser:
-   - Use the user's own Chrome/profile/session. Do not assume an account, store, cookie, or local username.
-   - Use the `browser-use` skill for browser work: connect to the current user's Chrome, open Lingxing pages, inspect state, search the SKU, scroll tables, screenshot evidence, and extract visible text.
-   - If `browser-use` is unavailable or automated extraction needs deterministic parsing, use `scripts/lingxing_capture.py` as a fallback helper.
-   - If automated extraction misses fields, continue with browser-use/manual browser inspection of the same pages.
+2. Read Lingxing data from the Lingxing web page opened in Codex:
+   - The user should log in and operate inside the Lingxing page opened by Codex. Do not ask the user to paste passwords or account cookies into chat.
+   - Use the Codex browser/browser-use tool for browser work: open Lingxing pages inside Codex, inspect state, search the SKU, scroll tables, screenshot evidence, and extract visible text.
+   - If the browser tool is unavailable or automated extraction needs deterministic parsing, use `scripts/lingxing_capture.py` only as a technical fallback. Do not ask non-technical users to run this helper.
+   - If automated extraction misses fields, continue with Codex web-page inspection of the same pages.
    - Never invent ERP numbers. If access or permissions block extraction, report the blocker and the exact field still needed.
 
 3. Use the core Lingxing pages:
    - `销售 > Listing`: batch entry page and sales source. Capture MSKU/FNSKU, status, ASIN, title, today/yesterday sales, `7|14|30天销量`, category/rank if useful, owner, and visible site/store context.
    - `仓库 > FBA库存明细`: inventory enrichment page. For the Listing SKU set, match FBA total inventory, FBA sellable, and AWD available + inbound total.
-   - In batch mode, try the Listing export/download button first. If export is unavailable, read the DOM/table rows across pages or visible virtual-scroll rows with browser-use.
+   - In batch mode, try the Listing export/download button first. If export is unavailable, read the DOM/table rows across pages or visible virtual-scroll rows with the Codex browser tool.
    - Do not open purchase-order pages in the first-version flow unless the user explicitly asks to consider existing purchase orders.
 
 4. Calculate with `scripts/replenishment_calculator.py`:
@@ -72,7 +73,7 @@ Use this only when the user names one SKU/MSKU/ASIN or asks to inspect one produ
 
 ## Commands
 
-Fallback helper to capture Lingxing visible data when browser-use is not available or when deterministic parsing is useful:
+Technical fallback helper to capture Lingxing visible data when the browser tool is not available or when deterministic parsing is useful. This is for Codex/maintainers, not for ordinary colleagues to run manually:
 
 ```bash
 python scripts/lingxing_capture.py --sku "FL-DE12GB-A" --out capture.json
@@ -90,7 +91,7 @@ Calculate batch replenishment from a JSON array and output CSV:
 python scripts/replenishment_calculator.py --input batch-replenishment-input.json --format csv > batch-replenishment-output.csv
 ```
 
-One-command rough-estimate example without browser extraction:
+One-command rough-estimate example without web-page extraction:
 
 ```bash
 python scripts/replenishment_calculator.py --sku "FL-DE12GB-A" --sales-30 70 --fba-total 100 --awd-total 0 --is-promoted false --sales-stability stable --production-days 15 --freight-prep-days 3 --transit-days 37 --format text
@@ -123,6 +124,7 @@ Minimum fields for a normal SKU:
 Recommended batch default:
 
 ```text
+请先在 Codex 打开的领星网页进入销售 > Listing 并筛好范围。
 批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。
 ```
 

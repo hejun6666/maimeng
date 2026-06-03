@@ -1,4 +1,4 @@
 interface:
   display_name: "领星SKU补货下单助手"
-  short_description: "读取Listing当前筛选结果，批量生成SKU补货与工厂下单建议。"
-  default_prompt: "批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。"
+  short_description: "读取Codex中领星Listing当前筛选结果，批量生成SKU补货与工厂下单建议。"
+  default_prompt: "请先在 Codex 打开的领星网页进入销售 > Listing 并筛好范围。批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。"

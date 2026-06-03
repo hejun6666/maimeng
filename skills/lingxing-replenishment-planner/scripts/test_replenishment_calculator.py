@@ -160,14 +160,15 @@ class BatchReplenishmentCalculationTests(unittest.TestCase):
                     "--format",
                     "csv",
                 ],
-                text=True,
                 capture_output=True,
                 check=False,
             )
 
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("SKU,品名,站点/店铺", proc.stdout)
-        self.assertIn("FL-DE12GB-A,Dragon Egg,US", proc.stdout)
+        self.assertTrue(proc.stdout.startswith(b"\xef\xbb\xbf"))
+        stdout = proc.stdout.decode("utf-8-sig")
+        self.assertIn("SKU,品名,站点/店铺", stdout)
+        self.assertIn("FL-DE12GB-A,Dragon Egg,US", stdout)
 
     def test_cli_accepts_utf8_bom_json_from_powershell(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -186,13 +187,50 @@ class BatchReplenishmentCalculationTests(unittest.TestCase):
                     "--format",
                     "csv",
                 ],
-                text=True,
                 capture_output=True,
                 check=False,
             )
 
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("BOM-SKU", proc.stdout)
+        stdout = proc.stdout.decode("utf-8-sig")
+        self.assertIn("BOM-SKU", stdout)
+
+    def test_cli_text_output_is_utf8_chinese(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            input_path = Path(tmp) / "single.json"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "sku": "TEXT-SKU",
+                        "site": "US",
+                        "sales_30": 70,
+                        "fba_total": 100,
+                        "awd_available_inbound_total": 20,
+                        "sales_stability": "stable",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(Path(__file__).with_name("replenishment_calculator.py")),
+                    "--input",
+                    str(input_path),
+                    "--format",
+                    "text",
+                ],
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        stdout = proc.stdout.decode("utf-8")
+        self.assertIn("TEXT-SKU", stdout)
+        self.assertIn("每周节奏", stdout)
+        self.assertNotIn("weekly", stdout)
 
     def test_december_promoted_sku_multiplies_sales_and_flags_critical_stock(self):
         result = calculate_replenishment(
