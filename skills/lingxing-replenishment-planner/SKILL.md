@@ -13,6 +13,20 @@ Do not frame the task as only for "operations". The user may be from purchasing,
 
 ## Entry Modes
 
+### Guided Mode: Non-technical Colleague Default
+
+Use this as the default when the user sounds like they only know normal AI chat, asks "怎么用", clicks the default prompt, or does not mention browser details.
+
+- Do not ask the user to understand browser-use, CDP, Chrome profiles, scripts, JSON, CSV, command lines, or exports up front.
+- Explain one action at a time in Chinese.
+- Start by opening or taking over a visible Chrome page through browser-use.
+- Tell the user: "请在打开的 Chrome 领星页面里登录。账号密码只填在领星页面，不要发到聊天里。登录好后回复我：已登录。"
+- After login, navigate or guide the user to `销售 > Listing`.
+- Tell the user to filter the business range in the visible page, then reply: "已筛好".
+- Only after the user has the correct Listing page ready, run batch extraction and inventory enrichment.
+- If browser-use cannot open or control the page, explain the blocker in plain language and ask for the one smallest next action, such as keeping Chrome open, allowing browser control, or exporting the current Listing result.
+- Keep the colleague-facing conversation short. Do not expose technical fallback steps unless the user is a maintainer or explicitly asks.
+
 ### Batch Mode: Listing Current Filter
 
 Use this when the user wants all SKU recommendations, current filtered results, all online SKUs, or says entering SKUs one by one is too slow.
@@ -26,8 +40,8 @@ Use this when the user wants all SKU recommendations, current filtered results, 
 Recommended prompt:
 
 ```text
-请使用 browser-use 打开或接管用户自己的 Chrome 领星网页，进入销售 > Listing 并筛好范围。
-批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。
+请带我完成领星 SKU 批量补货分析。
+你来用 browser-use 打开或接管我的 Chrome 领星网页；我只按你的提示登录、筛选销售 > Listing，然后你批量生成补货建议表。
 ```
 
 ### Single-SKU Mode
@@ -125,8 +139,8 @@ Minimum fields for a normal SKU:
 Recommended batch default:
 
 ```text
-请使用 browser-use 打开或接管用户自己的 Chrome 领星网页，进入销售 > Listing 并筛好范围。
-批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。
+请带我完成领星 SKU 批量补货分析。
+你来用 browser-use 打开或接管我的 Chrome 领星网页；我只按你的提示登录、筛选销售 > Listing，然后你批量生成补货建议表。
 ```
 
 Single-SKU check:

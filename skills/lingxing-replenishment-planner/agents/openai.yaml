@@ -1,4 +1,4 @@
 interface:
   display_name: "领星SKU补货下单助手"
   short_description: "用browser-use读取用户Chrome中的领星Listing筛选结果，批量生成SKU补货与工厂下单建议。"
-  default_prompt: "请使用 browser-use 打开或接管用户自己的 Chrome 领星网页，进入销售 > Listing 并筛好范围。批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。"
+  default_prompt: "请带我完成领星 SKU 批量补货分析。你来用 browser-use 打开或接管我的 Chrome 领星网页；我只按你的提示登录、筛选销售 > Listing，然后你批量生成补货建议表。"

@@ -8,8 +8,8 @@
 
 ```text
 [$lingxing-replenishment-planner]
-请使用 browser-use 打开或接管用户自己的 Chrome 领星网页，进入销售 > Listing 并筛好范围。
-批量分析销售 > Listing 当前筛选结果里的所有 SKU，生成补货建议表。
+请带我完成领星 SKU 批量补货分析。
+你来用 browser-use 打开或接管我的 Chrome 领星网页；我只按你的提示登录、筛选销售 > Listing，然后你批量生成补货建议表。
 ```
 
 Codex 会通过 browser-use 读取用户 Chrome 里当前领星网页筛选结果的 SKU 销量，再去 `仓库 > FBA库存明细` 匹配 FBA 和 AWD 库存，最后输出批量补货建议表。
