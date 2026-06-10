@@ -81,5 +81,38 @@ class SkillContractTest(unittest.TestCase):
             self.assertIn("once the Task 2 helper script is available", text)
 
 
+class FeishuBitableHelpersTest(unittest.TestCase):
+    def test_parse_bitable_url(self):
+        from feishu_bitable import parse_bitable_url
+
+        result = parse_bitable_url("https://x.feishu.cn/base/appABC123?table=tbl456&view=vew789")
+
+        self.assertEqual(result["app_token"], "appABC123")
+        self.assertEqual(result["table_id"], "tbl456")
+        self.assertEqual(result["view_id"], "vew789")
+
+    def test_map_fields(self):
+        from field_mapping import build_field_map
+
+        fields = [
+            {"field_id": "fld_img", "field_name": "产品图片", "type": 17},
+            {"field_id": "fld_cost", "field_name": "采购价", "type": 2},
+            {"field_id": "fld_sale", "field_name": "英国售价", "type": 2},
+        ]
+
+        result = build_field_map(fields)
+
+        self.assertEqual(result["product_image"]["field_id"], "fld_img")
+        self.assertEqual(result["purchase_price_gbp"]["field_id"], "fld_cost")
+        self.assertEqual(result["selling_price_gbp"]["field_id"], "fld_sale")
+
+    def test_extract_file_tokens(self):
+        from feishu_bitable import extract_file_tokens
+
+        value = [{"file_token": "boxcn123", "name": "a.png"}, {"token": "ignored"}]
+
+        self.assertEqual(extract_file_tokens(value), ["boxcn123"])
+
+
 if __name__ == "__main__":
     unittest.main()
