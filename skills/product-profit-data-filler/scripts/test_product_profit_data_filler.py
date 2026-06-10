@@ -447,5 +447,32 @@ class ProductExtractionTest(unittest.TestCase):
         self.assertEqual(result["package_dimensions"]["text"], "45.00 x 32.00 x 18.00 cm")
 
 
+class BatchRunnerTest(unittest.TestCase):
+    def test_cny_to_gbp(self):
+        from run_batch import cny_to_gbp
+
+        self.assertEqual(cny_to_gbp("22.90"), 2.50)
+
+    def test_evidence_line(self):
+        from run_batch import build_evidence
+
+        evidence = build_evidence("rec1", {"price_cny": "22.90"}, {"selected_price": "26.99"})
+
+        self.assertEqual(evidence["record_id"], "rec1")
+        self.assertEqual(evidence["purchase_price_gbp"], 2.5)
+        self.assertEqual(evidence["selling_price_gbp"], 26.99)
+
+    def test_load_plan_accepts_utf8_bom_json(self):
+        from run_batch import load_plan
+
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = Path(tmp) / "plan.json"
+            plan.write_text('{"records": [{"record_id": "rec1"}]}', encoding="utf-8-sig")
+
+            result = load_plan(plan)
+
+        self.assertEqual(result["records"][0]["record_id"], "rec1")
+
+
 if __name__ == "__main__":
     unittest.main()
