@@ -236,5 +236,60 @@ class FeishuBitableClientTest(unittest.TestCase):
         self.assertNotIn("raw-token", message)
 
 
+class BitablePlanTest(unittest.TestCase):
+    def test_plan_records_with_missing_fields(self):
+        from feishu_bitable import plan_records
+
+        field_map = {
+            "product_image": {"field_name": "产品图片"},
+            "purchase_price_gbp": {"field_name": "采购价"},
+            "package_dimensions": {"field_name": "包装尺寸"},
+        }
+        records = [
+            {
+                "record_id": "rec1",
+                "fields": {
+                    "产品图片": [{"file_token": "img1"}],
+                    "采购价": None,
+                    "包装尺寸": "",
+                },
+            },
+            {
+                "record_id": "rec2",
+                "fields": {
+                    "产品图片": [],
+                    "采购价": None,
+                },
+            },
+            {
+                "record_id": "rec3",
+                "fields": {
+                    "产品图片": [{"file_token": "img3"}],
+                    "采购价": 2.5,
+                    "包装尺寸": "45 x 32 x 18 cm",
+                },
+            },
+        ]
+
+        plan = plan_records(records, field_map)
+
+        self.assertEqual([record["record_id"] for record in plan], ["rec1"])
+        self.assertEqual(plan[0]["image_tokens"], ["img1"])
+
+    def test_shape_update_uses_field_names(self):
+        from feishu_bitable import shape_update_record
+
+        values = {"purchase_price_gbp": 2.5, "status": "已补齐", "ignored": "skip"}
+        field_map = {
+            "purchase_price_gbp": {"field_name": "采购价"},
+            "status": {"field_name": "状态"},
+        }
+
+        self.assertEqual(
+            shape_update_record("rec1", field_map, values),
+            {"record_id": "rec1", "fields": {"采购价": 2.5, "状态": "已补齐"}},
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

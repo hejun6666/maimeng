@@ -8,8 +8,16 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 API = "https://open.feishu.cn/open-apis"
+TARGET_ROLES = [
+    "purchase_price_gbp",
+    "package_dimensions",
+    "package_weight",
+    "product_attribute",
+    "selling_price_gbp",
+]
 
 
 def load_env_file(path=".env"):
@@ -50,6 +58,42 @@ def extract_file_tokens(value):
             if isinstance(child, (list, dict)):
                 tokens.extend(extract_file_tokens(child))
     return tokens
+
+
+def is_blank(value):
+    if value in (None, "", [], {}):
+        return True
+    return isinstance(value, str) and value.strip() == ""
+
+
+def plan_records(records, field_map):
+    image_field = field_map["product_image"]["field_name"]
+    target_names = [field_map[role]["field_name"] for role in TARGET_ROLES if role in field_map]
+    planned = []
+    for record in records:
+        fields = record.get("fields", {})
+        image_tokens = extract_file_tokens(fields.get(image_field))
+        if not image_tokens:
+            continue
+        if target_names and not any(is_blank(fields.get(name)) for name in target_names):
+            continue
+        planned.append(
+            {
+                "record_id": record["record_id"],
+                "image_tokens": image_tokens,
+                "fields": fields,
+            }
+        )
+    return planned
+
+
+def shape_update_record(record_id, field_map, values):
+    fields = {}
+    for role, value in values.items():
+        meta = field_map.get(role)
+        if meta is not None and value is not None:
+            fields[meta["field_name"]] = value
+    return {"record_id": record_id, "fields": fields}
 
 
 def _redact(text, secrets=()):
@@ -105,6 +149,49 @@ def verify_readable_product_image(client, records, field_map):
                 last_error = str(exc)
     detail = f": {last_error}" if last_error else ""
     raise RuntimeError(f"Probe failed: No readable product image attachment found in sampled records{detail}")
+
+
+def _write_json(path, value):
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("w", encoding="utf-8") as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+
+
+def _read_json(path):
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _selected_table_id(info, tables):
+    if info["table_id"]:
+        return info["table_id"]
+    if tables:
+        return tables[0]["table_id"]
+    raise RuntimeError("No tables found and URL did not include a table id")
+
+
+def _safe_name(value):
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "record")).strip("._")
+    return cleaned or "record"
+
+
+def _image_extension(data):
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if data.startswith(b"GIF87a") or data.startswith(b"GIF89a"):
+        return ".gif"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp"
+    return ".bin"
+
+
+def _chunks(items, size):
+    for index in range(0, len(items), size):
+        yield items[index : index + size]
 
 
 class FeishuClient:
@@ -251,8 +338,89 @@ def cmd_probe(args):
     text = json.dumps(out, ensure_ascii=False, indent=2)
     print(text)
     if args.out:
-        with open(args.out, "w", encoding="utf-8") as handle:
-            handle.write(text)
+        _write_json(args.out, out)
+
+
+def cmd_plan(args):
+    from field_mapping import build_field_map
+
+    load_env_file(args.env)
+    info = parse_bitable_url(args.url)
+    client = FeishuClient()
+    tables = client.list_tables(info["app_token"])
+    table_id = _selected_table_id(info, tables)
+    fields = client.list_fields(info["app_token"], table_id)
+    records = client.list_records(info["app_token"], table_id)
+    mapping = build_field_map(fields)
+    planned = plan_records(records, mapping)
+    out = {
+        "link": info,
+        "table_id": table_id,
+        "field_map": mapping,
+        "record_count": len(planned),
+        "records": planned,
+    }
+    text = json.dumps(out, ensure_ascii=False, indent=2)
+    print(text)
+    _write_json(args.out, out)
+
+
+def _plan_records_from_payload(payload):
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict) and isinstance(payload.get("records"), list):
+        return payload["records"]
+    raise ValueError("Plan JSON must be a list or an object with a records list")
+
+
+def cmd_download_images(args):
+    load_env_file(args.env)
+    parse_bitable_url(args.url)
+    plan_payload = _read_json(args.plan)
+    records = _plan_records_from_payload(plan_payload)
+    client = FeishuClient()
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    metadata = []
+    for record in records:
+        record_id = record["record_id"]
+        for token_index, file_token in enumerate(record.get("image_tokens", [])):
+            data = client.download_media(file_token)
+            filename = f"{_safe_name(record_id)}_{token_index}{_image_extension(data)}"
+            path = out_dir / filename
+            path.write_bytes(data)
+            metadata.append(
+                {
+                    "record_id": record_id,
+                    "token_index": token_index,
+                    "path": str(path),
+                    "filename": filename,
+                    "bytes": len(data),
+                }
+            )
+    metadata_path = out_dir / "metadata.json"
+    _write_json(metadata_path, metadata)
+    print(json.dumps({"downloaded": len(metadata), "metadata": str(metadata_path)}, ensure_ascii=False, indent=2))
+
+
+def cmd_update_records(args):
+    load_env_file(args.env)
+    info = parse_bitable_url(args.url)
+    updates = _read_json(args.updates)
+    if not isinstance(updates, list):
+        raise ValueError("Updates JSON must be a list of Feishu update records")
+    if args.batch_size < 1:
+        raise ValueError("--batch-size must be at least 1")
+    client = FeishuClient()
+    tables = [] if info["table_id"] else client.list_tables(info["app_token"])
+    table_id = _selected_table_id(info, tables)
+    total = 0
+    for batch in _chunks(updates, args.batch_size):
+        if not batch:
+            continue
+        client.batch_update_records(info["app_token"], table_id, batch)
+        total += len(batch)
+    print(json.dumps({"updated": total, "batches": (total + args.batch_size - 1) // args.batch_size}, indent=2))
 
 
 def build_parser():
@@ -266,6 +434,23 @@ def build_parser():
     probe.add_argument("--sample-size", type=int, default=20, help="maximum records to sample")
     probe.add_argument("--max-pages", type=int, default=1, help="maximum record pages to read")
     probe.set_defaults(func=cmd_probe)
+
+    plan = subparsers.add_parser("plan", help="plan records with images and blank target fields")
+    plan.add_argument("--url", required=True, help="Feishu Bitable URL containing /base/<app_token>")
+    plan.add_argument("--out", required=True, help="JSON plan output path")
+    plan.set_defaults(func=cmd_plan)
+
+    download = subparsers.add_parser("download-images", help="download planned product images")
+    download.add_argument("--url", required=True, help="Feishu Bitable URL containing /base/<app_token>")
+    download.add_argument("--plan", required=True, help="JSON plan from the plan command")
+    download.add_argument("--out-dir", required=True, help="directory for downloaded images")
+    download.set_defaults(func=cmd_download_images)
+
+    update = subparsers.add_parser("update-records", help="batch update Feishu Bitable records")
+    update.add_argument("--url", required=True, help="Feishu Bitable URL containing /base/<app_token>")
+    update.add_argument("--updates", required=True, help="JSON list of Feishu update records")
+    update.add_argument("--batch-size", type=int, default=100, help="maximum records per batch update")
+    update.set_defaults(func=cmd_update_records)
     return parser
 
 
