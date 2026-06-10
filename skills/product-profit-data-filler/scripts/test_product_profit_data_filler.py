@@ -36,6 +36,12 @@ MOJIBAKE_MARKERS = [
 SECRET_VALUE_RE = re.compile(
     r"(cli_[A-Za-z0-9_-]{12,}|[A-Za-z0-9_-]{32,}|FEISHU_APP_(?:ID|SECRET)\s*=\s*['\"]?[^<\s][^'\"]+)",
 )
+STALE_WORKFLOW_RE = re.compile(
+    r"future helper|later script|not runnable|not implemented|"
+    r"once later tasks implement|once .*helper script .*available|"
+    r"until .*helper script exists|contract for later implementation",
+    re.IGNORECASE,
+)
 
 
 def read(path):
@@ -96,6 +102,11 @@ class SkillContractTest(unittest.TestCase):
             "scripts/run_batch.py",
         ]:
             self.assertIn(script, text)
+
+    def test_required_references_describe_current_runnable_workflow(self):
+        for name in REQUIRED_REFERENCES:
+            text = read(ROOT / "references" / name)
+            self.assertIsNone(STALE_WORKFLOW_RE.search(text), name)
 
 
 class FeishuBitableHelpersTest(unittest.TestCase):

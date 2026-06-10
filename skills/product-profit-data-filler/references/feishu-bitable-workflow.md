@@ -1,6 +1,6 @@
 # Feishu Bitable Workflow
 
-Use Feishu Bitable as the source of rows, images, and writeback targets. Use the Feishu OpenAPI through scripts once later tasks implement them; use browser automation only when a user explicitly needs help locating the Bitable link or checking the visible table after API writeback.
+Use Feishu Bitable as the source of rows, images, and writeback targets. Use the Feishu OpenAPI through the bundled scripts now; use browser automation only when a user explicitly needs help locating the Bitable link or checking the visible table after API writeback.
 
 ## Credentials
 
@@ -17,7 +17,13 @@ Use Feishu Bitable as the source of rows, images, and writeback targets. Use the
 
 ## Probe First
 
-Before scraping, downloading images, or writing data, run the Feishu Bitable probe once the Task 2 helper script is available. The probe must confirm:
+Before scraping, downloading images, or writing data, run:
+
+```powershell
+python scripts/feishu_bitable.py probe --url "<bitable-url>" --out outputs/probe.json
+```
+
+The probe must confirm:
 
 - App token can be parsed.
 - Tenant access token can be issued from `FEISHU_APP_ID` and `FEISHU_APP_SECRET`.
@@ -26,9 +32,13 @@ Before scraping, downloading images, or writing data, run the Feishu Bitable pro
 - Records can be listed.
 - At least one target row has a readable product image attachment.
 
-Until the helper script exists, treat this as a contract for later implementation rather than a runnable command.
-
 ## Record Planning
+
+Build the row plan with:
+
+```powershell
+python scripts/feishu_bitable.py plan --url "<bitable-url>" --out outputs/plan.json
+```
 
 - Select only records that have a product image and at least one blank target field.
 - Default batch size is 20 records.
@@ -37,12 +47,34 @@ Until the helper script exists, treat this as a contract for later implementatio
 
 ## Image Download
 
+Download planned row images with:
+
+```powershell
+python scripts/feishu_bitable.py download-images --url "<bitable-url>" --plan outputs/plan.json --out-dir outputs/images
+```
+
 - Extract Feishu file tokens from product image attachment fields.
 - Download images through Feishu Drive media APIs.
 - Store downloaded files under local `outputs/images/`.
 - Stop if images cannot be downloaded because of permission, token shape, or file expiry.
 
+## Batch Build
+
+After collecting each row's 1688 and Amazon UK extraction JSON files, build update payloads, evidence, and resume state with:
+
+```powershell
+python scripts/run_batch.py --url "<bitable-url>" --plan outputs/plan.json --image-dir outputs/images --batch-size 20 --out-updates outputs/updates.json --evidence outputs/evidence.jsonl
+```
+
+This step normalizes package values, converts 1688 CNY price to GBP purchase cost, chooses the Amazon UK selling price from collected competitor data, and writes `outputs/updates.json`.
+
 ## Writeback
+
+Write accepted updates back to Feishu with:
+
+```powershell
+python scripts/feishu_bitable.py update-records --url "<bitable-url>" --updates outputs/updates.json --batch-size 20
+```
 
 - Build the write payload from mapped field names, not guessed column positions.
 - Write only mapped target fields.
