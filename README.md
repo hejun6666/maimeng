@@ -44,10 +44,21 @@ https://github.com/hejun6666/maimeng/tree/main/skills/lingxing-replenishment-pla
 
 用途：通过 browser-use 打开或接管用户自己的 Chrome 领星 ERP 网页，读取销售 > Listing 当前筛选结果，批量获取 SKU 销量，再匹配 FBA/AWD 库存，生成补货建议、每周补货参考量和工厂下单建议。
 
+### 1688 源头厂家筛选询价助手
+
+安装地址：
+
+```text
+https://github.com/hejun6666/maimeng/tree/main/skills/1688-source-factory-finder
+```
+
+用途：通过开源 Browser Use 项目的 `browser-use` 命令控制用户已登录的 1688 网页端，按图片、关键词、商品链接或当前页面找候选供应商，默认问 7-9 家；先发商品卡片/链接再发默认询价话术，按真人采购节奏逐家发送、回收回复、追问缺字段，并导出公司采购跟进 Excel。这里的 `browser-use` 不是 Codex 内置 Browser 插件。
+
 ## 使用文档
 
 - [Amazon Listing 自动文案 Skill 使用说明](docs/amazon-listing-skill-usage.md)
 - [领星 SKU 补货下单助手使用说明](docs/lingxing-replenishment-skill-usage.md)
+- [1688 源头厂家筛选询价助手使用说明](docs/1688-source-factory-skill-usage.md)
 
 如需 Word 版手册，用 Codex 单独生成并发送，不纳入 git。
 
