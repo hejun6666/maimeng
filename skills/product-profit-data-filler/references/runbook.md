@@ -39,18 +39,26 @@ python scripts/feishu_bitable.py download-images --url "<bitable-url>" --plan ou
    - Search 1688 by image.
    - Scrape the selected 1688 product page.
    - Scrape or collect Amazon UK competitor prices.
-   - Normalize package values.
-   - Prepare a record update.
+   - Save extraction JSON beside the downloaded images as `<safe_record_id>.1688.json` and `<safe_record_id>.amazon.json`.
 
-5. Write back in batches:
+5. Build Feishu update payloads, evidence, and resume state:
 
 ```powershell
-python scripts/feishu_bitable.py update-records --url "<bitable-url>" --updates outputs/updates.json
+python scripts/run_batch.py --url "<bitable-url>" --plan outputs/plan.json --image-dir outputs/images --batch-size 20 --out-updates outputs/updates.json --evidence outputs/evidence.jsonl
+```
+
+This normalizes package values, converts 1688 CNY prices to GBP, writes `outputs/updates.json`, appends `outputs/evidence.jsonl`, and saves `outputs/run-state.json` after each record.
+
+6. Write back in batches:
+
+```powershell
+python scripts/feishu_bitable.py update-records --url "<bitable-url>" --updates outputs/updates.json --batch-size 20
 ```
 
 ## Batch Behavior
 
-- Default batch size: 20 records.
+- `run_batch.py` default batch size: 20 planned records. Pass `--batch-size 20` explicitly in production runs.
+- `feishu_bitable.py update-records` default batch size: 100 Feishu records. Pass `--batch-size 20` when you want the same 20-row write-back batches as the runner.
 - Continue other rows when one row fails.
 - Save `outputs/run-state.json` after each row and batch.
 - Save `outputs/evidence.jsonl` with record_id, image path, 1688 URL, Amazon UK URLs, extracted values, confidence, and errors.
