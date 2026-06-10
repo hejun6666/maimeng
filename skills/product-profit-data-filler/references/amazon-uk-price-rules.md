@@ -45,6 +45,6 @@ If there is an even number of candidates, choose the observed price closest to t
 ## Currency And Writeback
 
 - Prices must be GBP.
-- Strip the `拢` or `£` display symbol before numeric writeback.
+- Strip the `£` display symbol before numeric writeback.
 - Keep the Amazon UK URL for evidence and writeback when a mapped field exists.
 - Do not convert Amazon UK selling price with the 9.17 exchange rate; `9.17` applies only to converting 1688 CNY purchase price to GBP purchase cost.

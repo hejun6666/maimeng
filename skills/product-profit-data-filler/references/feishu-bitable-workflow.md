@@ -1,6 +1,6 @@
 # Feishu Bitable Workflow
 
-Use Feishu Bitable as the source of rows, images, and writeback targets. Use the Feishu OpenAPI through scripts first; use browser automation only when a user explicitly needs help locating the Bitable link or checking the visible table after API writeback.
+Use Feishu Bitable as the source of rows, images, and writeback targets. Use the Feishu OpenAPI through scripts once later tasks implement them; use browser automation only when a user explicitly needs help locating the Bitable link or checking the visible table after API writeback.
 
 ## Credentials
 
@@ -17,13 +17,7 @@ Use Feishu Bitable as the source of rows, images, and writeback targets. Use the
 
 ## Probe First
 
-Before scraping, downloading images, or writing data, run:
-
-```powershell
-python "$env:USERPROFILE\.codex\skills\product-profit-data-filler\scripts\feishu_bitable.py" probe --url "<bitable-url>"
-```
-
-The probe must confirm:
+Before scraping, downloading images, or writing data, run the Feishu Bitable probe once the Task 2 helper script is available. The probe must confirm:
 
 - App token can be parsed.
 - Tenant access token can be issued from `FEISHU_APP_ID` and `FEISHU_APP_SECRET`.
@@ -31,6 +25,8 @@ The probe must confirm:
 - Field metadata can be listed.
 - Records can be listed.
 - At least one target row has a readable product image attachment.
+
+Until the helper script exists, treat this as a contract for later implementation rather than a runnable command.
 
 ## Record Planning
 
