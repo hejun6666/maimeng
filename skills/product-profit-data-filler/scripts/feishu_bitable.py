@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -51,6 +52,61 @@ def extract_file_tokens(value):
     return tokens
 
 
+def _redact(text, secrets=()):
+    text = str(text)
+    text = re.sub(r"Bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer <redacted>", text)
+    for secret in secrets:
+        if secret:
+            text = text.replace(str(secret), "<redacted>")
+    return text
+
+
+def _known_secrets(*extra):
+    names = ["FEISHU_APP_ID", "FEISHU_APP_SECRET"]
+    return [value for value in [*(os.environ.get(name) for name in names), *extra] if value]
+
+
+def _decode_json(payload):
+    if not payload:
+        return {}
+    try:
+        return json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+
+
+def _feishu_error(status, payload=None, fallback=None, secrets=()):
+    data = _decode_json(payload or b"")
+    code = data.get("code", "")
+    msg = data.get("msg") or data.get("message") or fallback or "request failed"
+    request_id = data.get("request_id") or data.get("requestId") or data.get("log_id") or ""
+    parts = [f"Feishu API error status={status}"]
+    if code != "":
+        parts.append(f"code={code}")
+    if msg:
+        parts.append(f"msg={_redact(msg, secrets)}")
+    if request_id:
+        parts.append(f"request_id={_redact(request_id, secrets)}")
+    return RuntimeError(" ".join(parts))
+
+
+def verify_readable_product_image(client, records, field_map):
+    image_meta = field_map.get("product_image")
+    if not image_meta:
+        raise RuntimeError("Probe failed: product_image field is not mapped")
+    image_field = image_meta["field_name"]
+    last_error = None
+    for record in records:
+        for token in extract_file_tokens(record.get("fields", {}).get(image_field)):
+            try:
+                client.download_media(token)
+                return token
+            except RuntimeError as exc:
+                last_error = str(exc)
+    detail = f": {last_error}" if last_error else ""
+    raise RuntimeError(f"Probe failed: No readable product image attachment found in sampled records{detail}")
+
+
 class FeishuClient:
     def __init__(self, token=None):
         self.token = token or self.get_tenant_access_token()
@@ -65,10 +121,17 @@ class FeishuClient:
             method="POST",
         )
         req.add_header("Content-Type", "application/json; charset=utf-8")
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
+        secrets = _known_secrets(app_id, app_secret)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                payload = resp.read()
+        except urllib.error.HTTPError as exc:
+            raise _feishu_error(exc.code, exc.read(), exc.reason, secrets) from None
+        except urllib.error.URLError as exc:
+            raise _feishu_error("network", fallback=exc.reason, secrets=secrets) from None
+        result = _decode_json(payload)
         if result.get("code") != 0:
-            raise RuntimeError(json.dumps(result, ensure_ascii=False))
+            raise _feishu_error(200, payload, secrets=secrets)
         return result["tenant_access_token"]
 
     def request(self, method, path, body=None, params=None, raw=False):
@@ -80,13 +143,19 @@ class FeishuClient:
         req.add_header("Authorization", f"Bearer {self.token}")
         if body is not None:
             req.add_header("Content-Type", "application/json; charset=utf-8")
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            payload = resp.read()
+        secrets = _known_secrets(self.token)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                payload = resp.read()
+        except urllib.error.HTTPError as exc:
+            raise _feishu_error(exc.code, exc.read(), exc.reason, secrets) from None
+        except urllib.error.URLError as exc:
+            raise _feishu_error("network", fallback=exc.reason, secrets=secrets) from None
         if raw:
             return payload
-        result = json.loads(payload.decode("utf-8"))
+        result = _decode_json(payload)
         if result.get("code") != 0:
-            raise RuntimeError(json.dumps(result, ensure_ascii=False))
+            raise _feishu_error(200, payload, secrets=secrets)
         return result.get("data", {})
 
     def _list_paginated(self, path, page_size=100):
@@ -116,6 +185,28 @@ class FeishuClient:
             page_size=page_size,
         )
 
+    def list_records_sample(self, app_token, table_id, page_size=20, max_pages=1, max_records=None):
+        items = []
+        page_token = None
+        for _ in range(max_pages):
+            params = {"page_size": page_size}
+            if page_token:
+                params["page_token"] = page_token
+            data = self.request(
+                "GET",
+                f"/bitable/v1/apps/{app_token}/tables/{table_id}/records",
+                params=params,
+            )
+            items.extend(data.get("items", []))
+            if max_records is not None and len(items) >= max_records:
+                return items[:max_records]
+            if not data.get("has_more"):
+                return items
+            page_token = data.get("page_token")
+            if not page_token:
+                return items
+        return items
+
     def download_media(self, file_token):
         return self.request("GET", f"/drive/v1/medias/{file_token}/download", raw=True)
 
@@ -139,8 +230,15 @@ def cmd_probe(args):
         raise RuntimeError("No tables found and URL did not include a table id")
     table_id = info["table_id"] or tables[0]["table_id"]
     fields = client.list_fields(info["app_token"], table_id)
-    records = client.list_records(info["app_token"], table_id, page_size=20)
+    records = client.list_records_sample(
+        info["app_token"],
+        table_id,
+        page_size=args.sample_size,
+        max_pages=args.max_pages,
+        max_records=args.sample_size,
+    )
     mapping = build_field_map(fields)
+    verify_readable_product_image(client, records, mapping)
     out = {
         "link": info,
         "table_id": table_id,
@@ -148,6 +246,7 @@ def cmd_probe(args):
         "fields": fields,
         "field_map": mapping,
         "sample_record_count": len(records),
+        "readable_product_image": True,
     }
     text = json.dumps(out, ensure_ascii=False, indent=2)
     print(text)
@@ -164,6 +263,8 @@ def build_parser():
     probe = subparsers.add_parser("probe", help="read Bitable metadata and sample records")
     probe.add_argument("--url", required=True, help="Feishu Bitable URL containing /base/<app_token>")
     probe.add_argument("--out", help="optional JSON output path")
+    probe.add_argument("--sample-size", type=int, default=20, help="maximum records to sample")
+    probe.add_argument("--max-pages", type=int, default=1, help="maximum record pages to read")
     probe.set_defaults(func=cmd_probe)
     return parser
 

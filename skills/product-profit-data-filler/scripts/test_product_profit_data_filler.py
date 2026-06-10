@@ -1,6 +1,10 @@
 from pathlib import Path
+import io
+import json
 import re
 import unittest
+from unittest.mock import patch
+import urllib.error
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_REFERENCES = [
@@ -112,6 +116,124 @@ class FeishuBitableHelpersTest(unittest.TestCase):
         value = [{"file_token": "boxcn123", "name": "a.png"}, {"token": "ignored"}]
 
         self.assertEqual(extract_file_tokens(value), ["boxcn123"])
+
+
+class FeishuBitableClientTest(unittest.TestCase):
+    def test_list_records_sample_stops_at_page_limit(self):
+        from feishu_bitable import FeishuClient
+
+        client = FeishuClient(token="test-token")
+        calls = []
+
+        def fake_request(method, path, params=None, **kwargs):
+            calls.append(params.copy())
+            return {
+                "items": [{"record_id": f"rec{len(calls)}"}],
+                "has_more": True,
+                "page_token": f"page-{len(calls)}",
+            }
+
+        client.request = fake_request
+
+        records = client.list_records_sample("appABC123", "tbl456", page_size=2, max_pages=2)
+
+        self.assertEqual([record["record_id"] for record in records], ["rec1", "rec2"])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0], {"page_size": 2})
+        self.assertEqual(calls[1], {"page_size": 2, "page_token": "page-1"})
+
+    def test_verify_readable_product_image_downloads_one_token(self):
+        from feishu_bitable import verify_readable_product_image
+
+        class FakeClient:
+            def __init__(self):
+                self.downloaded = []
+
+            def download_media(self, file_token):
+                self.downloaded.append(file_token)
+                return b"image-bytes"
+
+        client = FakeClient()
+        records = [{"fields": {"产品图片": [{"file_token": "boxcn123"}]}}]
+        field_map = {"product_image": {"field_name": "产品图片"}}
+
+        token = verify_readable_product_image(client, records, field_map)
+
+        self.assertEqual(token, "boxcn123")
+        self.assertEqual(client.downloaded, ["boxcn123"])
+
+    def test_verify_readable_product_image_requires_readable_token(self):
+        from feishu_bitable import verify_readable_product_image
+
+        class FakeClient:
+            def download_media(self, file_token):
+                raise RuntimeError("Feishu API error status=403 code=999 msg=Forbidden request_id=req-1")
+
+        records = [{"fields": {"产品图片": [{"file_token": "boxcn123"}]}}]
+        field_map = {"product_image": {"field_name": "产品图片"}}
+
+        with self.assertRaisesRegex(RuntimeError, "No readable product image attachment"):
+            verify_readable_product_image(FakeClient(), records, field_map)
+
+    def test_nonzero_feishu_code_is_sanitized(self):
+        from feishu_bitable import FeishuClient
+
+        body = {
+            "code": 999,
+            "msg": "bad app secret secret-value Bearer raw-token",
+            "request_id": "req-abc",
+        }
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return json.dumps(body).encode("utf-8")
+
+        with patch.dict("os.environ", {"FEISHU_APP_ID": "app-id", "FEISHU_APP_SECRET": "secret-value"}):
+            with patch("urllib.request.urlopen", return_value=FakeResponse()):
+                with self.assertRaises(RuntimeError) as raised:
+                    FeishuClient().get_tenant_access_token()
+
+        message = str(raised.exception)
+        self.assertIn("status=200", message)
+        self.assertIn("code=999", message)
+        self.assertIn("request_id=req-abc", message)
+        self.assertNotIn("secret-value", message)
+        self.assertNotIn("raw-token", message)
+
+    def test_http_error_body_is_sanitized(self):
+        from feishu_bitable import FeishuClient
+
+        body = {
+            "code": 1254003,
+            "msg": "Bearer raw-token cannot read secret-value",
+            "request_id": "req-http",
+        }
+        error = urllib.error.HTTPError(
+            "https://open.feishu.cn/open-apis/test",
+            403,
+            "Forbidden",
+            {},
+            io.BytesIO(json.dumps(body).encode("utf-8")),
+        )
+        client = FeishuClient(token="raw-token")
+
+        with patch.dict("os.environ", {"FEISHU_APP_SECRET": "secret-value"}):
+            with patch("urllib.request.urlopen", side_effect=error):
+                with self.assertRaises(RuntimeError) as raised:
+                    client.request("GET", "/test")
+
+        message = str(raised.exception)
+        self.assertIn("status=403", message)
+        self.assertIn("code=1254003", message)
+        self.assertIn("request_id=req-http", message)
+        self.assertNotIn("secret-value", message)
+        self.assertNotIn("raw-token", message)
 
 
 if __name__ == "__main__":
