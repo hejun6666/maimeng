@@ -1,7 +1,10 @@
 from pathlib import Path
+import argparse
+import hashlib
 import io
 import json
 import re
+import tempfile
 import unittest
 from unittest.mock import patch
 import urllib.error
@@ -289,6 +292,92 @@ class BitablePlanTest(unittest.TestCase):
             shape_update_record("rec1", field_map, values),
             {"record_id": "rec1", "fields": {"采购价": 2.5, "状态": "已补齐"}},
         )
+
+    def test_update_records_rejects_malformed_payloads_before_write(self):
+        from feishu_bitable import cmd_update_records
+
+        malformed_payloads = [
+            ["not-a-record"],
+            [{"record_id": "", "fields": {"status": "filled"}}],
+            [{"record_id": "rec1", "fields": {}}],
+            [{"record_id": "rec1", "fields": {"status": "filled"}, "extra": True}],
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            for index, payload in enumerate(malformed_payloads):
+                updates = Path(tmp) / f"updates-{index}.json"
+                updates.write_text(json.dumps(payload), encoding="utf-8")
+                args = argparse.Namespace(
+                    env=str(Path(tmp) / "missing.env"),
+                    url="https://x.feishu.cn/base/appABC123?table=tbl456",
+                    updates=str(updates),
+                    batch_size=100,
+                )
+
+                with patch("feishu_bitable.FeishuClient") as client_cls:
+                    with self.assertRaises(ValueError):
+                        cmd_update_records(args)
+
+                client_cls.assert_not_called()
+
+    def test_update_records_rejects_oversized_batch_before_write(self):
+        from feishu_bitable import cmd_update_records
+
+        with tempfile.TemporaryDirectory() as tmp:
+            updates = Path(tmp) / "updates.json"
+            updates.write_text(
+                json.dumps([{"record_id": "rec1", "fields": {"status": "filled"}}]),
+                encoding="utf-8",
+            )
+            args = argparse.Namespace(
+                env=str(Path(tmp) / "missing.env"),
+                url="https://x.feishu.cn/base/appABC123?table=tbl456",
+                updates=str(updates),
+                batch_size=501,
+            )
+
+            with patch("feishu_bitable.FeishuClient") as client_cls:
+                with self.assertRaises(ValueError):
+                    cmd_update_records(args)
+
+            client_cls.assert_not_called()
+
+    def test_download_images_writes_token_and_sha256_metadata(self):
+        from feishu_bitable import cmd_download_images
+
+        image_bytes = b"\x89PNG\r\n\x1a\nimage-data"
+
+        class FakeClient:
+            def download_media(self, file_token):
+                return image_bytes
+
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = Path(tmp) / "plan.json"
+            out_dir = Path(tmp) / "images"
+            plan.write_text(
+                json.dumps({"records": [{"record_id": "rec/1", "image_tokens": ["boxcn123"]}]}),
+                encoding="utf-8",
+            )
+            args = argparse.Namespace(
+                env=str(Path(tmp) / "missing.env"),
+                url="https://x.feishu.cn/base/appABC123?table=tbl456",
+                plan=str(plan),
+                out_dir=str(out_dir),
+            )
+
+            with patch("feishu_bitable.FeishuClient", return_value=FakeClient()):
+                with patch("builtins.print"):
+                    cmd_download_images(args)
+
+            metadata = json.loads((out_dir / "metadata.json").read_text(encoding="utf-8"))
+            downloaded = out_dir / metadata[0]["filename"]
+            downloaded_bytes = downloaded.read_bytes()
+
+        self.assertEqual(metadata[0]["record_id"], "rec/1")
+        self.assertEqual(metadata[0]["file_token"], "boxcn123")
+        self.assertEqual(metadata[0]["sha256"], hashlib.sha256(image_bytes).hexdigest())
+        self.assertEqual(metadata[0]["filename"], "rec_1_0.png")
+        self.assertEqual(downloaded_bytes, image_bytes)
 
 
 if __name__ == "__main__":

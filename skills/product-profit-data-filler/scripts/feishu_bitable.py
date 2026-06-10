@@ -1,6 +1,7 @@
 """Small stdlib Feishu Bitable client and probe CLI."""
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -11,6 +12,7 @@ import urllib.request
 from pathlib import Path
 
 API = "https://open.feishu.cn/open-apis"
+MAX_UPDATE_BATCH_SIZE = 500
 TARGET_ROLES = [
     "purchase_price_gbp",
     "package_dimensions",
@@ -192,6 +194,24 @@ def _image_extension(data):
 def _chunks(items, size):
     for index in range(0, len(items), size):
         yield items[index : index + size]
+
+
+def validate_update_records(records):
+    if not isinstance(records, list):
+        raise ValueError("Updates JSON must be a list of Feishu update records")
+    allowed_keys = {"record_id", "fields"}
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise ValueError(f"Update record at index {index} must be an object")
+        unknown_keys = set(record) - allowed_keys
+        if unknown_keys:
+            raise ValueError(f"Update record at index {index} has unknown keys: {sorted(unknown_keys)}")
+        record_id = record.get("record_id")
+        if not isinstance(record_id, str) or not record_id.strip():
+            raise ValueError(f"Update record at index {index} must have a non-empty string record_id")
+        fields = record.get("fields")
+        if not isinstance(fields, dict) or not fields:
+            raise ValueError(f"Update record at index {index} must have a non-empty fields object")
 
 
 class FeishuClient:
@@ -393,9 +413,11 @@ def cmd_download_images(args):
                 {
                     "record_id": record_id,
                     "token_index": token_index,
+                    "file_token": file_token,
                     "path": str(path),
                     "filename": filename,
                     "bytes": len(data),
+                    "sha256": hashlib.sha256(data).hexdigest(),
                 }
             )
     metadata_path = out_dir / "metadata.json"
@@ -407,10 +429,11 @@ def cmd_update_records(args):
     load_env_file(args.env)
     info = parse_bitable_url(args.url)
     updates = _read_json(args.updates)
-    if not isinstance(updates, list):
-        raise ValueError("Updates JSON must be a list of Feishu update records")
+    validate_update_records(updates)
     if args.batch_size < 1:
         raise ValueError("--batch-size must be at least 1")
+    if args.batch_size > MAX_UPDATE_BATCH_SIZE:
+        raise ValueError(f"--batch-size must be at most {MAX_UPDATE_BATCH_SIZE}")
     client = FeishuClient()
     tables = [] if info["table_id"] else client.list_tables(info["app_token"])
     table_id = _selected_table_id(info, tables)
