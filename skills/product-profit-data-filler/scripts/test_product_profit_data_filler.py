@@ -376,6 +376,7 @@ class BitablePlanTest(unittest.TestCase):
         self.assertEqual(metadata[0]["record_id"], "rec/1")
         self.assertEqual(metadata[0]["file_token"], "boxcn123")
         self.assertEqual(metadata[0]["sha256"], hashlib.sha256(image_bytes).hexdigest())
+        self.assertEqual(metadata[0]["byte_count"], len(image_bytes))
         self.assertEqual(metadata[0]["filename"], "rec_1_0.png")
         self.assertEqual(downloaded_bytes, image_bytes)
 

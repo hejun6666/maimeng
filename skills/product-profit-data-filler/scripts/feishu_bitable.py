@@ -416,6 +416,7 @@ def cmd_download_images(args):
                     "file_token": file_token,
                     "path": str(path),
                     "filename": filename,
+                    "byte_count": len(data),
                     "bytes": len(data),
                     "sha256": hashlib.sha256(data).hexdigest(),
                 }
