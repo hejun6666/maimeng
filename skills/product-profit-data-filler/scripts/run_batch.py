@@ -93,6 +93,27 @@ def build_update(record_id, field_map, evidence):
     return {"record_id": record_id, "fields": {key: value for key, value in values.items() if value is not None}}
 
 
+def extraction_file_context(paths):
+    return {
+        name: {
+            "path": str(path),
+            "exists": path.exists(),
+        }
+        for name, path in paths.items()
+    }
+
+
+def build_error_evidence(record_id, error, record=None, paths=None, index=None):
+    return {
+        "record_id": record_id,
+        "status": "error",
+        "error": str(error),
+        "record_index": index,
+        "record": record or {},
+        "extraction_files": extraction_file_context(paths or {}),
+    }
+
+
 def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
     if batch_size < 1:
         raise ValueError("--batch-size must be at least 1")
@@ -111,6 +132,7 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
     with Path(evidence_path).open("w", encoding="utf-8") as evidence_file:
         for index, record in enumerate(records, start=1):
             record_id = record.get("record_id")
+            paths = {}
             try:
                 if not record_id:
                     raise ValueError("planned record is missing record_id")
@@ -129,7 +151,9 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
                 state["succeeded"] += 1
             except Exception as exc:  # Keep the batch moving when one row is bad.
                 state["failed"] += 1
-                state["errors"].append({"record_id": record_id, "error": str(exc)})
+                error_evidence = build_error_evidence(record_id, exc, record=record, paths=paths, index=index)
+                evidence_file.write(json.dumps(error_evidence, ensure_ascii=False) + "\n")
+                state["errors"].append({"record_id": record_id, "error": str(exc), "record_index": index})
             finally:
                 state["processed"] = index
                 write_state(state_path, state)

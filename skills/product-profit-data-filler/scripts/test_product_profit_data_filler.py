@@ -473,6 +473,44 @@ class BatchRunnerTest(unittest.TestCase):
 
         self.assertEqual(result["records"][0]["record_id"], "rec1")
 
+    def test_row_failure_writes_evidence_and_continues(self):
+        from run_batch import run_batch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image_dir = root / "images"
+            image_dir.mkdir()
+            plan = root / "plan.json"
+            evidence = root / "evidence.jsonl"
+            updates = root / "updates.json"
+            plan.write_text(
+                json.dumps(
+                    {
+                        "field_map": {"purchase_price_gbp": {"field_name": "Purchase GBP"}},
+                        "records": [{"record_id": "rec-bad"}, {"record_id": "rec-good"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (image_dir / "rec-bad.1688.json").write_text("{bad json", encoding="utf-8")
+            (image_dir / "rec-good.1688.json").write_text(json.dumps({"price_cny": "22.90"}), encoding="utf-8")
+            (image_dir / "rec-good.amazon.json").write_text(json.dumps({"selected_price": "26.99"}), encoding="utf-8")
+
+            result = run_batch(plan, image_dir, updates, evidence, batch_size=20)
+            lines = [json.loads(line) for line in evidence.read_text(encoding="utf-8").splitlines()]
+            state = json.loads((root / "run-state.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(result["processed"], 2)
+        self.assertEqual(result["failed"], 1)
+        self.assertEqual(result["succeeded"], 1)
+        self.assertEqual([line["record_id"] for line in lines], ["rec-bad", "rec-good"])
+        self.assertEqual(lines[0]["status"], "error")
+        self.assertIn("error", lines[0])
+        self.assertIn("extraction_files", lines[0])
+        self.assertEqual(lines[1]["purchase_price_gbp"], 2.5)
+        self.assertEqual(state["processed"], 2)
+        self.assertEqual(state["failed"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
