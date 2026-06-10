@@ -15,6 +15,7 @@ REQUIRED_REFERENCES = [
     "feishu-bitable-workflow.md",
     "1688-data-rules.md",
     "amazon-uk-price-rules.md",
+    "runbook.md",
 ]
 TASK1_DOCS = [
     ROOT / "SKILL.md",
@@ -80,12 +81,21 @@ class SkillContractTest(unittest.TestCase):
             text = read(path)
             self.assertIsNone(SECRET_VALUE_RE.search(text), path.name)
 
-    def test_no_hard_requirement_to_run_missing_scripts(self):
-        for path in [ROOT / "SKILL.md", ROOT / "references" / "feishu-bitable-workflow.md"]:
-            text = read(path)
-            self.assertNotIn("python ", text, path.name)
-            self.assertNotIn("scripts/feishu_bitable.py", text, path.name)
-            self.assertIn("once the Task 2 helper script is available", text)
+    def test_skill_points_to_current_runnable_workflow(self):
+        text = read(ROOT / "SKILL.md")
+        self.assertNotIn("once the Task 2 helper script is available", text)
+        self.assertNotIn("later command", text)
+        self.assertNotIn("later tasks add", text)
+        self.assertIn("references/runbook.md", text)
+        for script in [
+            "scripts/feishu_bitable.py",
+            "scripts/scrape_1688_product.py",
+            "scripts/scrape_amazon_uk_prices.py",
+            "scripts/normalize_package_data.py",
+            "scripts/select_competitor_price.py",
+            "scripts/run_batch.py",
+        ]:
+            self.assertIn(script, text)
 
 
 class FeishuBitableHelpersTest(unittest.TestCase):

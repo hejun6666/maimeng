@@ -24,22 +24,23 @@ Use plain Chinese for coworker-facing summaries. The coworker should not need to
 
 ## Required First Step
 
-Before any scraping or editing, run the Feishu Bitable probe once the Task 2 helper script is available. The later command will probe the Bitable URL, read table metadata, inspect fields, and confirm that product images are readable.
+Before any scraping or editing, run the Feishu Bitable probe with `scripts/feishu_bitable.py probe` as described in `references/runbook.md`. The probe reads table metadata, inspects fields, and confirms that product images are readable.
 
-Until that script exists, do not claim live Feishu access has been verified. Stop if the probe cannot read table metadata, records, or product images.
+Do not claim live Feishu access has been verified unless the probe succeeds. Stop if the probe cannot read table metadata, records, or product images.
 
 ## Workflow
 
 1. Load Feishu credentials from `.env` or environment variables: `FEISHU_APP_ID`, `FEISHU_APP_SECRET`.
-2. Probe the Feishu Bitable link and build the field map once the Task 2 Feishu helper exists.
+2. Probe the Feishu Bitable link, build the field map, plan rows, and download images with `scripts/feishu_bitable.py`.
 3. Select rows with a product image and missing target data.
 4. Download row images through Feishu Bitable attachment/media APIs.
 5. For each row image, search 1688 for visually similar products. Use browser automation only for the image-upload/search-result step when needed.
-6. Scrape selected 1688 product pages with deterministic scripts once later tasks add them. Extract CNY price, package dimensions, package weight, product attributes, and 1688 URL.
+6. Scrape selected 1688 product pages with `scripts/scrape_1688_product.py`. Extract CNY price, package dimensions, package weight, product attributes, and 1688 URL.
 7. Get Amazon UK selling price from row-provided Amazon links first; otherwise search `amazon.co.uk` for similar products. Collect credible GBP prices and choose the middle observed price.
-8. Normalize dimensions/weight and convert 1688 CNY price to GBP purchase cost with `9.17`.
+8. Normalize dimensions/weight with `scripts/normalize_package_data.py`, choose collected competitor prices with `scripts/select_competitor_price.py`, and convert 1688 CNY price to GBP purchase cost with `9.17`.
 9. Write back only mapped input fields. Preserve formulas and existing calculated columns.
-10. Save batch state after each batch and continue other rows when one row fails.
+10. Use `scripts/scrape_amazon_uk_prices.py` when scraping Amazon UK price pages, then build update/evidence files with `scripts/run_batch.py`.
+11. Save batch state after each batch and continue other rows when one row fails.
 
 ## References
 
@@ -49,6 +50,7 @@ Read references before live runs:
 - `references/field-mapping.md`
 - `references/1688-data-rules.md`
 - `references/amazon-uk-price-rules.md`
+- `references/runbook.md`
 
 ## Field Mapping
 
@@ -58,7 +60,7 @@ Read [references/field-mapping.md](references/field-mapping.md). Do not add new 
 
 - Read [references/1688-data-rules.md](references/1688-data-rules.md) before 1688 extraction.
 - Read [references/amazon-uk-price-rules.md](references/amazon-uk-price-rules.md) before Amazon UK pricing.
-- Later tasks add helper scripts for repeatable Amazon UK price selection and dimensions/weight normalization.
+- Use `references/runbook.md` for the runnable script order and batch handoff steps.
 
 ## Stop Conditions
 

@@ -18,8 +18,8 @@ This skill is for Feishu Bitable / 多维表格, not generic Feishu Sheets. Buil
 1. Create or reuse a local `.env` file outside git:
 
 ```text
-FEISHU_APP_ID=cli_xxx
-FEISHU_APP_SECRET=xxx
+FEISHU_APP_ID=<your Feishu app id>
+FEISHU_APP_SECRET=<your Feishu app secret>
 ```
 
 2. Probe:
@@ -47,7 +47,7 @@ python scripts/feishu_bitable.py download-images --url "<bitable-url>" --plan ou
 python scripts/run_batch.py --url "<bitable-url>" --plan outputs/plan.json --image-dir outputs/images --batch-size 20 --out-updates outputs/updates.json --evidence outputs/evidence.jsonl
 ```
 
-This normalizes package values, converts 1688 CNY prices to GBP, writes `outputs/updates.json`, appends `outputs/evidence.jsonl`, and saves `outputs/run-state.json` after each record.
+This normalizes package values, converts 1688 CNY prices to GBP, writes `outputs/updates.json`, rewrites `outputs/evidence.jsonl` for the current run, and saves `outputs/run-state.json` after each record.
 
 6. Write back in batches:
 
@@ -61,7 +61,7 @@ python scripts/feishu_bitable.py update-records --url "<bitable-url>" --updates 
 - `feishu_bitable.py update-records` default batch size: 100 Feishu records. Pass `--batch-size 20` when you want the same 20-row write-back batches as the runner.
 - Continue other rows when one row fails.
 - Save `outputs/run-state.json` after each row and batch.
-- Save `outputs/evidence.jsonl` with record_id, image path, 1688 URL, Amazon UK URLs, extracted values, confidence, and errors.
+- Write/rewrite `outputs/evidence.jsonl` with record_id, image path, 1688 URL, Amazon UK URLs, extracted values, confidence, and errors.
 
 ## No Secrets in Output
 
