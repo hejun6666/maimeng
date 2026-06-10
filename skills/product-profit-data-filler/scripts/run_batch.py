@@ -88,9 +88,7 @@ def values_from_evidence(evidence):
 
 def build_update(record_id, field_map, evidence):
     values = values_from_evidence(evidence)
-    if field_map:
-        return shape_update_record(record_id, field_map, values)
-    return {"record_id": record_id, "fields": {key: value for key, value in values.items() if value is not None}}
+    return shape_update_record(record_id, field_map, values)
 
 
 def extraction_file_context(paths):
@@ -140,10 +138,7 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
                 data_1688 = read_json_if_present(paths["1688"])
                 amazon_data = read_json_if_present(paths["amazon"])
                 evidence = build_evidence(record_id, data_1688, amazon_data)
-                evidence["extraction_files"] = {
-                    "1688": str(paths["1688"]) if paths["1688"].exists() else None,
-                    "amazon": str(paths["amazon"]) if paths["amazon"].exists() else None,
-                }
+                evidence["extraction_files"] = extraction_file_context(paths)
                 evidence_file.write(json.dumps(evidence, ensure_ascii=False) + "\n")
                 update = build_update(record_id, field_map, evidence)
                 if update["fields"]:

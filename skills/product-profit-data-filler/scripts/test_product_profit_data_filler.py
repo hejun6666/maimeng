@@ -473,6 +473,17 @@ class BatchRunnerTest(unittest.TestCase):
 
         self.assertEqual(result["records"][0]["record_id"], "rec1")
 
+    def test_build_update_without_field_map_has_no_internal_role_fields(self):
+        from run_batch import build_update
+
+        evidence = {
+            "purchase_price_gbp": 2.5,
+            "package_dimensions": "45.00 x 32.00 x 18.00 cm",
+            "status": "filled",
+        }
+
+        self.assertEqual(build_update("rec1", {}, evidence), {"record_id": "rec1", "fields": {}})
+
     def test_row_failure_writes_evidence_and_continues(self):
         from run_batch import run_batch
 
@@ -507,7 +518,21 @@ class BatchRunnerTest(unittest.TestCase):
         self.assertEqual(lines[0]["status"], "error")
         self.assertIn("error", lines[0])
         self.assertIn("extraction_files", lines[0])
+        self.assertEqual(
+            lines[0]["extraction_files"],
+            {
+                "1688": {"path": str(image_dir / "rec-bad.1688.json"), "exists": True},
+                "amazon": {"path": str(image_dir / "rec-bad.amazon.json"), "exists": False},
+            },
+        )
         self.assertEqual(lines[1]["purchase_price_gbp"], 2.5)
+        self.assertEqual(
+            lines[1]["extraction_files"],
+            {
+                "1688": {"path": str(image_dir / "rec-good.1688.json"), "exists": True},
+                "amazon": {"path": str(image_dir / "rec-good.amazon.json"), "exists": True},
+            },
+        )
         self.assertEqual(state["processed"], 2)
         self.assertEqual(state["failed"], 1)
 
