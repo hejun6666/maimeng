@@ -10,13 +10,21 @@ import sys
 from decimal import Decimal, ROUND_HALF_UP
 
 
-PRICE_RE = re.compile(r"(?:£|\$|€|￥|¥|GBP|USD|EUR|CNY|RMB)?\s*([0-9]+(?:\.[0-9]{1,2})?)", re.I)
+CURRENCY_PRICE_RE = re.compile(
+    r"(?:£|拢|\$|€|¥|￥|GBP|USD|EUR|CNY|RMB)\s*([0-9]+(?:\.[0-9]{1,2})?)",
+    re.I,
+)
+COMMA_NUMBERS_RE = re.compile(r"^\s*[0-9]+(?:\.[0-9]{1,2})?(?:\s*,\s*[0-9]+(?:\.[0-9]{1,2})?)+\s*$")
+NUMBER_RE = re.compile(r"[0-9]+(?:\.[0-9]{1,2})?")
 
 
 def parse_prices(parts: list[str]) -> list[Decimal]:
     text = " ".join(parts)
+    if COMMA_NUMBERS_RE.match(text):
+        return [Decimal(match.group(0)) for match in NUMBER_RE.finditer(text)]
+
     values: list[Decimal] = []
-    for match in PRICE_RE.finditer(text):
+    for match in CURRENCY_PRICE_RE.finditer(text):
         value = Decimal(match.group(1))
         if value >= Decimal("1"):
             values.append(value)

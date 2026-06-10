@@ -17,6 +17,13 @@ from select_competitor_price import choose_existing_middle, money, parse_prices
 DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; CodexProductProfitDataFiller/1.0)"
 MARKETPLACE = "amazon.co.uk"
 GBP_RE = re.compile(r"(?:£|拢|GBP)\s*([0-9]+(?:\.[0-9]{2})?)", re.I)
+SPLIT_PRICE_RE = re.compile(
+    r"<[^>]*class=[\"'][^\"']*a-price-symbol[^\"']*[\"'][^>]*>\s*(?:&pound;|£|GBP)?\s*</[^>]+>\s*"
+    r"<[^>]*class=[\"'][^\"']*a-price-whole[^\"']*[\"'][^>]*>\s*([0-9,]+)\s*</[^>]+>\s*"
+    r"(?:<[^>]*class=[\"'][^\"']*a-price-decimal[^\"']*[\"'][^>]*>.*?</[^>]+>\s*)?"
+    r"<[^>]*class=[\"'][^\"']*a-price-fraction[^\"']*[\"'][^>]*>\s*([0-9]{2})\s*</[^>]+>",
+    re.I | re.S,
+)
 
 
 def text_from_html(value: str) -> str:
@@ -48,15 +55,24 @@ def ensure_amazon_uk_url(url: str) -> None:
         raise ValueError("Amazon UK parser only accepts amazon.co.uk URLs")
 
 
+def split_markup_prices(text: str) -> list[str]:
+    return [
+        f"£{whole.replace(',', '')}.{fraction}"
+        for whole, fraction in SPLIT_PRICE_RE.findall(text)
+    ]
+
+
 def parse_prices_from_text(text: str) -> dict[str, object]:
     normalized_text = text_from_html(text)
-    price_text = " ".join("£" + value for value in GBP_RE.findall(normalized_text))
-    prices = parse_prices([price_text])
-    selected = choose_existing_middle(prices)
+    split_prices = split_markup_prices(text)
+    generic_prices = [] if split_prices else ["£" + value for value in GBP_RE.findall(normalized_text)]
+    price_inputs = [" ".join(split_prices), *generic_prices]
+    prices = parse_prices(price_inputs)
+    selected = choose_existing_middle(prices) if prices else None
     return {
         "marketplace": MARKETPLACE,
         "prices": [money(price) for price in sorted(prices)],
-        "selected_price": money(selected),
+        "selected_price": money(selected) if selected is not None else None,
     }
 
 

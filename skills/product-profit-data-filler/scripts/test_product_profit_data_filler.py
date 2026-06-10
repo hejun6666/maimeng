@@ -401,6 +401,51 @@ class ProductExtractionTest(unittest.TestCase):
         self.assertEqual(result["selected_price"], "26.99")
         self.assertEqual(result["marketplace"], "amazon.co.uk")
 
+    def test_parse_prices_ignores_bare_non_price_numbers(self):
+        from select_competitor_price import money, parse_prices
+
+        result = parse_prices(["Rated 4.6 stars from 1,234 reviews; item size 45 x 32 x 18 cm"])
+
+        self.assertEqual([money(price) for price in result], [])
+
+    def test_parse_prices_accepts_explicit_comma_delimited_numbers(self):
+        from select_competitor_price import money, parse_prices
+
+        result = parse_prices(["16.99,26.99,28.99"])
+
+        self.assertEqual([money(price) for price in result], ["16.99", "26.99", "28.99"])
+
+    def test_parse_amazon_split_price_markup(self):
+        from scrape_amazon_uk_prices import parse_prices_from_text
+
+        html = """
+        <span class="a-price">
+          <span class="a-price-symbol">&pound;</span>
+          <span class="a-price-whole">16</span>
+          <span class="a-price-fraction">99</span>
+        </span>
+        """
+
+        result = parse_prices_from_text(html)
+
+        self.assertEqual(result["prices"], ["16.99"])
+        self.assertEqual(result["selected_price"], "16.99")
+
+    def test_parse_amazon_no_price_returns_empty_result(self):
+        from scrape_amazon_uk_prices import parse_prices_from_text
+
+        result = parse_prices_from_text("Rated 4.6 stars from 1,234 reviews")
+
+        self.assertEqual(result["prices"], [])
+        self.assertIsNone(result["selected_price"])
+
+    def test_package_dimensions_prefer_package_label(self):
+        from normalize_package_data import extract
+
+        result = extract("item dimensions 10 x 20 x 30 cm; package size 450 x 320 x 180 mm")
+
+        self.assertEqual(result["package_dimensions"]["text"], "45.00 x 32.00 x 18.00 cm")
+
 
 if __name__ == "__main__":
     unittest.main()
