@@ -381,5 +381,26 @@ class BitablePlanTest(unittest.TestCase):
         self.assertEqual(downloaded_bytes, image_bytes)
 
 
+class ProductExtractionTest(unittest.TestCase):
+    def test_parse_1688_text(self):
+        from scrape_1688_product import parse_1688_text
+
+        text = "浠锋牸 楼22.90 鍖呰灏哄 450脳320脳180mm 姣涢噸 850g"
+
+        result = parse_1688_text(text)
+
+        self.assertEqual(result["price_cny"], "22.90")
+        self.assertEqual(result["package_dimensions"], "45.00 x 32.00 x 18.00 cm")
+        self.assertEqual(result["package_weight"], "0.85 kg")
+
+    def test_parse_amazon_uk_prices(self):
+        from scrape_amazon_uk_prices import parse_prices_from_text
+
+        result = parse_prices_from_text("拢16.99 拢26.99 拢28.99")
+
+        self.assertEqual(result["selected_price"], "26.99")
+        self.assertEqual(result["marketplace"], "amazon.co.uk")
+
+
 if __name__ == "__main__":
     unittest.main()
