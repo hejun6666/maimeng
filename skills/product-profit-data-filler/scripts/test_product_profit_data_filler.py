@@ -574,6 +574,48 @@ class BatchRunnerTest(unittest.TestCase):
             },
         )
 
+    def test_amazon_only_extraction_writes_error_without_success_update(self):
+        from run_batch import run_batch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image_dir = root / "images"
+            image_dir.mkdir()
+            plan = root / "plan.json"
+            evidence = root / "evidence.jsonl"
+            updates = root / "updates.json"
+            plan.write_text(
+                json.dumps(
+                    {
+                        "field_map": {"selling_price_gbp": {"field_name": "Selling GBP"}},
+                        "records": [{"record_id": "rec-amazon"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (image_dir / "rec-amazon.amazon.json").write_text(
+                json.dumps({"selected_price": "26.99"}),
+                encoding="utf-8",
+            )
+
+            result = run_batch(plan, image_dir, updates, evidence, batch_size=20)
+            evidence_rows = [json.loads(line) for line in evidence.read_text(encoding="utf-8").splitlines()]
+            update_rows = json.loads(updates.read_text(encoding="utf-8"))
+
+        self.assertEqual(result["failed"], 1)
+        self.assertEqual(result["succeeded"], 0)
+        self.assertEqual(result["updates"], 0)
+        self.assertEqual(update_rows, [])
+        self.assertEqual(evidence_rows[0]["status"], "error")
+        self.assertIn("Missing essential extraction data", evidence_rows[0]["error"])
+        self.assertEqual(
+            evidence_rows[0]["extraction_files"],
+            {
+                "1688": {"path": str(image_dir / "rec-amazon.1688.json"), "exists": False},
+                "amazon": {"path": str(image_dir / "rec-amazon.amazon.json"), "exists": True},
+            },
+        )
+
     def test_malformed_record_writes_error_and_continues(self):
         from run_batch import run_batch
 

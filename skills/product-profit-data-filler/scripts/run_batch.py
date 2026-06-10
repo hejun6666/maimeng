@@ -91,8 +91,13 @@ def build_update(record_id, field_map, evidence):
     return shape_update_record(record_id, field_map, values)
 
 
-def has_usable_extraction_data(data_1688, amazon_data):
-    return any(isinstance(data, dict) and bool(data) for data in (data_1688, amazon_data))
+def has_essential_extraction_data(data_1688, amazon_data):
+    return (
+        isinstance(data_1688, dict)
+        and bool(data_1688.get("price_cny"))
+        and isinstance(amazon_data, dict)
+        and bool(amazon_data.get("selected_price"))
+    )
 
 
 def extraction_file_context(paths):
@@ -150,8 +155,10 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
                     raise ValueError("planned record is missing record_id")
                 data_1688 = read_json_if_present(paths["1688"])
                 amazon_data = read_json_if_present(paths["amazon"])
-                if not has_usable_extraction_data(data_1688, amazon_data):
-                    raise ValueError("No usable extraction data found for record")
+                if not has_essential_extraction_data(data_1688, amazon_data):
+                    raise ValueError(
+                        "Missing essential extraction data: No usable extraction data found for record"
+                    )
                 evidence = build_evidence(record_id, data_1688, amazon_data)
                 evidence["extraction_files"] = extraction_files
                 evidence_file.write(json.dumps(evidence, ensure_ascii=False) + "\n")
