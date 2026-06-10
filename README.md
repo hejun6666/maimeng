@@ -54,6 +54,16 @@ https://github.com/hejun6666/maimeng/tree/main/skills/1688-source-factory-finder
 
 用途：通过开源 Browser Use 项目的 `browser-use` 命令控制用户已登录的 1688 网页端，按图片、关键词、商品链接或当前页面找候选供应商，默认问 7-9 家；先发商品卡片/链接再发默认询价话术，按真人采购节奏逐家发送、回收回复、追问缺字段，并导出公司采购跟进 Excel。这里的 `browser-use` 不是 Codex 内置 Browser 插件。
 
+### 选品漏斗产品数据补齐助手
+
+安装地址：
+
+```text
+https://github.com/hejun6666/maimeng/tree/main/skills/product-profit-data-filler
+```
+
+用途：面向飞书多维表格选品/利润测算表。通过 Feishu OpenAPI 读取产品图和缺失字段，按图片去 1688 找高相似高销量商品，抓采购价、包装尺寸和重量；Amazon 固定英国站 `amazon.co.uk`，取竞对售价区间里的折中价；1688 人民币采购价按固定汇率 9.17 换算为 GBP 后写回表格。
+
 ## 使用文档
 
 - [Amazon Listing 自动文案 Skill 使用说明](docs/amazon-listing-skill-usage.md)

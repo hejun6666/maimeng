@@ -3,6 +3,10 @@ __pycache__/
 *.pyc
 .DS_Store
 ~$*.docx
+.env
+*.env
+outputs/
+skills/product-profit-data-filler/outputs/
 
 # Generated local operator manuals; keep source docs in git instead.
 docs/*.docx
