@@ -536,6 +536,31 @@ class BatchRunnerTest(unittest.TestCase):
         self.assertEqual(state["processed"], 2)
         self.assertEqual(state["failed"], 1)
 
+    def test_missing_record_id_failure_uses_standard_extraction_file_shape(self):
+        from run_batch import run_batch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image_dir = root / "images"
+            image_dir.mkdir()
+            plan = root / "plan.json"
+            evidence = root / "evidence.jsonl"
+            updates = root / "updates.json"
+            plan.write_text(json.dumps({"records": [{"fields": {}}]}), encoding="utf-8")
+
+            result = run_batch(plan, image_dir, updates, evidence, batch_size=20)
+            lines = [json.loads(line) for line in evidence.read_text(encoding="utf-8").splitlines()]
+
+        self.assertEqual(result["failed"], 1)
+        self.assertEqual(lines[0]["status"], "error")
+        self.assertEqual(
+            lines[0]["extraction_files"],
+            {
+                "1688": {"path": str(image_dir / "record.1688.json"), "exists": False},
+                "amazon": {"path": str(image_dir / "record.amazon.json"), "exists": False},
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -101,14 +101,18 @@ def extraction_file_context(paths):
     }
 
 
-def build_error_evidence(record_id, error, record=None, paths=None, index=None):
+def extraction_file_context_for_record(image_dir, record_id):
+    return extraction_file_context(extraction_paths(image_dir, record_id))
+
+
+def build_error_evidence(record_id, error, record=None, paths=None, index=None, extraction_files=None):
     return {
         "record_id": record_id,
         "status": "error",
         "error": str(error),
         "record_index": index,
         "record": record or {},
-        "extraction_files": extraction_file_context(paths or {}),
+        "extraction_files": extraction_files if extraction_files is not None else extraction_file_context(paths or {}),
     }
 
 
@@ -131,14 +135,15 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
         for index, record in enumerate(records, start=1):
             record_id = record.get("record_id")
             paths = {}
+            extraction_files = extraction_file_context_for_record(image_root, record_id)
             try:
+                paths = extraction_paths(image_root, record_id)
                 if not record_id:
                     raise ValueError("planned record is missing record_id")
-                paths = extraction_paths(image_root, record_id)
                 data_1688 = read_json_if_present(paths["1688"])
                 amazon_data = read_json_if_present(paths["amazon"])
                 evidence = build_evidence(record_id, data_1688, amazon_data)
-                evidence["extraction_files"] = extraction_file_context(paths)
+                evidence["extraction_files"] = extraction_files
                 evidence_file.write(json.dumps(evidence, ensure_ascii=False) + "\n")
                 update = build_update(record_id, field_map, evidence)
                 if update["fields"]:
@@ -146,7 +151,14 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
                 state["succeeded"] += 1
             except Exception as exc:  # Keep the batch moving when one row is bad.
                 state["failed"] += 1
-                error_evidence = build_error_evidence(record_id, exc, record=record, paths=paths, index=index)
+                error_evidence = build_error_evidence(
+                    record_id,
+                    exc,
+                    record=record,
+                    paths=paths,
+                    index=index,
+                    extraction_files=extraction_files,
+                )
                 evidence_file.write(json.dumps(error_evidence, ensure_ascii=False) + "\n")
                 state["errors"].append({"record_id": record_id, "error": str(exc), "record_index": index})
             finally:
