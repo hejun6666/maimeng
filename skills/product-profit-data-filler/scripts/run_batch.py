@@ -91,6 +91,10 @@ def build_update(record_id, field_map, evidence):
     return shape_update_record(record_id, field_map, values)
 
 
+def has_usable_extraction_data(data_1688, amazon_data):
+    return any(isinstance(data, dict) and bool(data) for data in (data_1688, amazon_data))
+
+
 def extraction_file_context(paths):
     return {
         name: {
@@ -133,15 +137,21 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
     Path(evidence_path).parent.mkdir(parents=True, exist_ok=True)
     with Path(evidence_path).open("w", encoding="utf-8") as evidence_file:
         for index, record in enumerate(records, start=1):
-            record_id = record.get("record_id")
+            record_id = None
             paths = {}
-            extraction_files = extraction_file_context_for_record(image_root, record_id)
+            extraction_files = None
             try:
+                if not isinstance(record, dict):
+                    raise ValueError("planned record must be an object")
+                record_id = record.get("record_id")
+                extraction_files = extraction_file_context_for_record(image_root, record_id)
                 paths = extraction_paths(image_root, record_id)
                 if not record_id:
                     raise ValueError("planned record is missing record_id")
                 data_1688 = read_json_if_present(paths["1688"])
                 amazon_data = read_json_if_present(paths["amazon"])
+                if not has_usable_extraction_data(data_1688, amazon_data):
+                    raise ValueError("No usable extraction data found for record")
                 evidence = build_evidence(record_id, data_1688, amazon_data)
                 evidence["extraction_files"] = extraction_files
                 evidence_file.write(json.dumps(evidence, ensure_ascii=False) + "\n")
@@ -151,6 +161,8 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
                 state["succeeded"] += 1
             except Exception as exc:  # Keep the batch moving when one row is bad.
                 state["failed"] += 1
+                if extraction_files is None:
+                    extraction_files = extraction_file_context_for_record(image_root, record_id)
                 error_evidence = build_error_evidence(
                     record_id,
                     exc,
