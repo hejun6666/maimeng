@@ -398,6 +398,18 @@ class BitablePlanTest(unittest.TestCase):
             },
         )
 
+    def test_shape_update_coerces_number_fields(self):
+        from feishu_bitable import shape_update_record
+
+        values = {"purchase_price_cny": "22.90"}
+        field_map = {"purchase_price_cny": {"field_name": "1688价", "type": 2}}
+        original_fields = {"1688价": ""}
+
+        self.assertEqual(
+            shape_update_record("rec1", field_map, values, original_fields=original_fields),
+            {"record_id": "rec1", "fields": {"1688价": 22.9}},
+        )
+
     def test_update_records_rejects_malformed_payloads_before_write(self):
         from feishu_bitable import cmd_update_records
 
@@ -645,7 +657,10 @@ class BatchRunnerTest(unittest.TestCase):
                 json.dumps(
                     {
                         "field_map": {"purchase_price_gbp": {"field_name": "Purchase GBP"}},
-                        "records": [{"record_id": "rec-bad"}, {"record_id": "rec-good"}],
+                        "records": [
+                            {"record_id": "rec-bad"},
+                            {"record_id": "rec-good", "fields": {"Purchase GBP": ""}},
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -709,9 +724,9 @@ class BatchRunnerTest(unittest.TestCase):
                     {
                         "field_map": {"purchase_price_gbp": {"field_name": "Purchase GBP"}},
                         "records": [
-                            {"record_id": "rec1"},
-                            {"record_id": "rec2"},
-                            {"record_id": "rec3"},
+                            {"record_id": "rec1", "fields": {"Purchase GBP": ""}},
+                            {"record_id": "rec2", "fields": {"Purchase GBP": ""}},
+                            {"record_id": "rec3", "fields": {"Purchase GBP": ""}},
                         ],
                     }
                 ),
@@ -837,12 +852,23 @@ class BatchRunnerTest(unittest.TestCase):
                 json.dumps(
                     {
                         "field_map": {"purchase_price_gbp": {"field_name": "Purchase GBP"}},
-                        "records": ["bad-row", {"record_id": "rec-good"}],
+                        "records": ["bad-row", {"record_id": "rec-good", "fields": {"Purchase GBP": ""}}],
                     }
                 ),
                 encoding="utf-8",
             )
-            (image_dir / "rec-good.1688.json").write_text(json.dumps({"price_cny": "22.90"}), encoding="utf-8")
+            (image_dir / "rec-good.1688.json").write_text(
+                json.dumps(
+                    {
+                        "price_cny": "22.90",
+                        "package_dimensions": "45.00 x 32.00 x 18.00 cm",
+                        "package_weight": "0.85 kg",
+                        "product_attribute": "硅胶材质",
+                        "url": "https://detail.1688.com/offer/1.html",
+                    }
+                ),
+                encoding="utf-8",
+            )
             (image_dir / "rec-good.amazon.json").write_text(json.dumps({"selected_price": "26.99"}), encoding="utf-8")
 
             result = run_batch(plan, image_dir, updates, evidence, batch_size=20)
@@ -883,6 +909,51 @@ class BatchRunnerTest(unittest.TestCase):
                 "amazon": {"path": str(image_dir / "record.amazon.json"), "exists": False},
             },
         )
+
+    def test_record_without_original_fields_fails_closed(self):
+        from run_batch import run_batch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image_dir = root / "images"
+            image_dir.mkdir()
+            plan = root / "plan.json"
+            evidence = root / "evidence.jsonl"
+            updates = root / "updates.json"
+            plan.write_text(
+                json.dumps(
+                    {
+                        "field_map": {"purchase_price_gbp": {"field_name": "Purchase GBP", "type": 2}},
+                        "records": [{"record_id": "rec-no-fields"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (image_dir / "rec-no-fields.1688.json").write_text(
+                json.dumps(
+                    {
+                        "price_cny": "22.90",
+                        "package_dimensions": "45.00 x 32.00 x 18.00 cm",
+                        "package_weight": "0.85 kg",
+                        "product_attribute": "硅胶材质",
+                        "url": "https://detail.1688.com/offer/1.html",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (image_dir / "rec-no-fields.amazon.json").write_text(
+                json.dumps({"selected_price": "26.99"}),
+                encoding="utf-8",
+            )
+
+            result = run_batch(plan, image_dir, updates, evidence, batch_size=20)
+            update_rows = json.loads(updates.read_text(encoding="utf-8"))
+            evidence_rows = [json.loads(line) for line in evidence.read_text(encoding="utf-8").splitlines()]
+
+        self.assertEqual(result["failed"], 1)
+        self.assertEqual(result["updates"], 0)
+        self.assertEqual(update_rows, [])
+        self.assertIn("original fields", evidence_rows[0]["error"])
 
 
 if __name__ == "__main__":

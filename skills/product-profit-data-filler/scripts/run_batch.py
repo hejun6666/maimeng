@@ -205,6 +205,8 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
                     )
                 evidence = build_evidence(record_id, data_1688, amazon_data)
                 evidence["extraction_files"] = extraction_files
+                if field_map and "fields" not in record:
+                    raise ValueError("planned record is missing original fields; refusing blank-field writeback")
                 evidence_file.write(json.dumps(evidence, ensure_ascii=False) + "\n")
                 update = build_update(record_id, field_map, evidence, original_fields=record.get("fields", {}))
                 if update["fields"]:

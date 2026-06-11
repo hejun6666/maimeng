@@ -10,6 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from decimal import Decimal, InvalidOperation
 
 API = "https://open.feishu.cn/open-apis"
 MAX_UPDATE_BATCH_SIZE = 500
@@ -25,6 +26,7 @@ TARGET_ROLES = [
 ]
 READONLY_FIELD_TYPES = {19, 20, 1001, 1002, 1003, 1004, 1005}
 URL_FIELD_TYPE = 15
+NUMBER_FIELD_TYPES = {2, 3}
 
 
 def load_env_file(path=".env"):
@@ -107,8 +109,14 @@ def _is_writable_field(meta):
 
 
 def _shape_field_value(meta, value):
-    if _field_type(meta) == URL_FIELD_TYPE and isinstance(value, str):
+    field_type = _field_type(meta)
+    if field_type == URL_FIELD_TYPE and isinstance(value, str):
         return {"link": value, "text": value}
+    if field_type in NUMBER_FIELD_TYPES and isinstance(value, str):
+        try:
+            return float(Decimal(value))
+        except InvalidOperation:
+            return value
     return value
 
 
