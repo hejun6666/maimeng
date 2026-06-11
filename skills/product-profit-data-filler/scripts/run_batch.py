@@ -11,6 +11,16 @@ from feishu_bitable import shape_update_record
 
 EXCHANGE_RATE = Decimal("9.17")
 STATUS_FILLED = "\u5df2\u8865\u9f50"
+STATUS_PARTIAL = "已补齐但缺字段"
+REQUIRED_EVIDENCE_FIELDS = [
+    "purchase_price_cny",
+    "purchase_price_gbp",
+    "package_dimensions",
+    "package_weight",
+    "product_attribute",
+    "selling_price_gbp",
+    "supplier_url",
+]
 
 
 def cny_to_gbp(price_cny):
@@ -19,17 +29,29 @@ def cny_to_gbp(price_cny):
 
 
 def build_evidence(record_id, data_1688, amazon_data):
-    return {
+    evidence = {
         "record_id": record_id,
         "purchase_price_cny": data_1688.get("price_cny"),
         "purchase_price_gbp": cny_to_gbp(data_1688["price_cny"]) if data_1688.get("price_cny") else None,
         "package_dimensions": data_1688.get("package_dimensions"),
         "package_weight": data_1688.get("package_weight"),
+        "product_attribute": data_1688.get("product_attribute"),
         "selling_price_gbp": float(amazon_data["selected_price"]) if amazon_data.get("selected_price") else None,
         "supplier_url": data_1688.get("url") or data_1688.get("supplier_url"),
         "amazon_url": amazon_data.get("url") or amazon_data.get("amazon_url"),
-        "status": STATUS_FILLED,
     }
+    missing = missing_evidence_fields(evidence)
+    evidence["missing_fields"] = missing
+    evidence["status"] = STATUS_FILLED if not missing else STATUS_PARTIAL
+    return evidence
+
+
+def missing_evidence_fields(evidence):
+    return [name for name in REQUIRED_EVIDENCE_FIELDS if evidence.get(name) in (None, "", [], {})]
+
+
+def is_complete_evidence(evidence):
+    return not missing_evidence_fields(evidence)
 
 
 def safe_name(value):
@@ -76,9 +98,11 @@ def extraction_paths(image_dir, record_id):
 
 def values_from_evidence(evidence):
     return {
+        "purchase_price_cny": evidence.get("purchase_price_cny"),
         "purchase_price_gbp": evidence.get("purchase_price_gbp"),
         "package_dimensions": evidence.get("package_dimensions"),
         "package_weight": evidence.get("package_weight"),
+        "product_attribute": evidence.get("product_attribute"),
         "selling_price_gbp": evidence.get("selling_price_gbp"),
         "supplier_url": evidence.get("supplier_url"),
         "amazon_url": evidence.get("amazon_url"),
@@ -86,9 +110,9 @@ def values_from_evidence(evidence):
     }
 
 
-def build_update(record_id, field_map, evidence):
+def build_update(record_id, field_map, evidence, original_fields=None):
     values = values_from_evidence(evidence)
-    return shape_update_record(record_id, field_map, values)
+    return shape_update_record(record_id, field_map, values, original_fields=original_fields)
 
 
 def has_essential_extraction_data(data_1688, amazon_data):
@@ -98,6 +122,19 @@ def has_essential_extraction_data(data_1688, amazon_data):
         and isinstance(amazon_data, dict)
         and bool(amazon_data.get("selected_price"))
     )
+
+
+def load_previous_state(state_path):
+    if not state_path.exists():
+        return {"processed": 0, "succeeded": 0, "failed": 0, "errors": []}
+    try:
+        with state_path.open(encoding="utf-8") as handle:
+            state = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {"processed": 0, "succeeded": 0, "failed": 0, "errors": []}
+    if not isinstance(state, dict):
+        return {"processed": 0, "succeeded": 0, "failed": 0, "errors": []}
+    return state
 
 
 def extraction_file_context(paths):
@@ -133,15 +170,22 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
         raise ValueError("--image-dir must be an existing directory")
 
     plan = load_plan(plan_path)
-    records = plan["records"][:batch_size]
-    field_map = plan.get("field_map") or {}
     state_path = Path(evidence_path).parent / "run-state.json"
+    previous_state = load_previous_state(state_path)
+    start_index = min(int(previous_state.get("processed") or 0), len(plan["records"]))
+    records = plan["records"][start_index : start_index + batch_size]
+    field_map = plan.get("field_map") or {}
     updates = []
-    state = {"processed": 0, "succeeded": 0, "failed": 0, "errors": []}
+    state = {
+        "processed": start_index,
+        "succeeded": int(previous_state.get("succeeded") or 0),
+        "failed": int(previous_state.get("failed") or 0),
+        "errors": list(previous_state.get("errors") or []),
+    }
 
     Path(evidence_path).parent.mkdir(parents=True, exist_ok=True)
     with Path(evidence_path).open("w", encoding="utf-8") as evidence_file:
-        for index, record in enumerate(records, start=1):
+        for index, record in enumerate(records, start=start_index + 1):
             record_id = None
             paths = {}
             extraction_files = None
@@ -162,7 +206,7 @@ def run_batch(plan_path, image_dir, out_updates, evidence_path, batch_size):
                 evidence = build_evidence(record_id, data_1688, amazon_data)
                 evidence["extraction_files"] = extraction_files
                 evidence_file.write(json.dumps(evidence, ensure_ascii=False) + "\n")
-                update = build_update(record_id, field_map, evidence)
+                update = build_update(record_id, field_map, evidence, original_fields=record.get("fields", {}))
                 if update["fields"]:
                     updates.append(update)
                 state["succeeded"] += 1

@@ -15,11 +15,16 @@ API = "https://open.feishu.cn/open-apis"
 MAX_UPDATE_BATCH_SIZE = 500
 TARGET_ROLES = [
     "purchase_price_gbp",
+    "purchase_price_cny",
     "package_dimensions",
     "package_weight",
     "product_attribute",
     "selling_price_gbp",
+    "supplier_url",
+    "amazon_url",
 ]
+READONLY_FIELD_TYPES = {19, 20, 1001, 1002, 1003, 1004, 1005}
+URL_FIELD_TYPE = 15
 
 
 def load_env_file(path=".env"):
@@ -89,12 +94,35 @@ def plan_records(records, field_map):
     return planned
 
 
-def shape_update_record(record_id, field_map, values):
+def _field_type(meta):
+    value = meta.get("type") or meta.get("field_type")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_writable_field(meta):
+    return _field_type(meta) not in READONLY_FIELD_TYPES
+
+
+def _shape_field_value(meta, value):
+    if _field_type(meta) == URL_FIELD_TYPE and isinstance(value, str):
+        return {"link": value, "text": value}
+    return value
+
+
+def shape_update_record(record_id, field_map, values, original_fields=None, fill_only_blank=True):
     fields = {}
+    original_fields = original_fields or {}
     for role, value in values.items():
         meta = field_map.get(role)
-        if meta is not None and value is not None:
-            fields[meta["field_name"]] = value
+        if meta is None or value is None or not _is_writable_field(meta):
+            continue
+        field_name = meta["field_name"]
+        if fill_only_blank and not is_blank(original_fields.get(field_name)):
+            continue
+        fields[field_name] = _shape_field_value(meta, value)
     return {"record_id": record_id, "fields": fields}
 
 
@@ -265,11 +293,13 @@ class FeishuClient:
             raise _feishu_error(200, payload, secrets=secrets)
         return result.get("data", {})
 
-    def _list_paginated(self, path, page_size=100):
+    def _list_paginated(self, path, page_size=100, extra_params=None):
         items = []
         page_token = None
         while True:
             params = {"page_size": page_size}
+            if extra_params:
+                params.update({key: value for key, value in extra_params.items() if value is not None})
             if page_token:
                 params["page_token"] = page_token
             data = self.request("GET", path, params=params)
@@ -286,17 +316,20 @@ class FeishuClient:
     def list_fields(self, app_token, table_id):
         return self._list_paginated(f"/bitable/v1/apps/{app_token}/tables/{table_id}/fields")
 
-    def list_records(self, app_token, table_id, page_size=100):
+    def list_records(self, app_token, table_id, page_size=100, view_id=None):
         return self._list_paginated(
             f"/bitable/v1/apps/{app_token}/tables/{table_id}/records",
             page_size=page_size,
+            extra_params={"view_id": view_id},
         )
 
-    def list_records_sample(self, app_token, table_id, page_size=20, max_pages=1, max_records=None):
+    def list_records_sample(self, app_token, table_id, page_size=20, max_pages=1, max_records=None, view_id=None):
         items = []
         page_token = None
         for _ in range(max_pages):
             params = {"page_size": page_size}
+            if view_id:
+                params["view_id"] = view_id
             if page_token:
                 params["page_token"] = page_token
             data = self.request(
@@ -343,6 +376,7 @@ def cmd_probe(args):
         page_size=args.sample_size,
         max_pages=args.max_pages,
         max_records=args.sample_size,
+        view_id=info["view_id"],
     )
     mapping = build_field_map(fields)
     verify_readable_product_image(client, records, mapping)
@@ -370,7 +404,7 @@ def cmd_plan(args):
     tables = client.list_tables(info["app_token"])
     table_id = _selected_table_id(info, tables)
     fields = client.list_fields(info["app_token"], table_id)
-    records = client.list_records(info["app_token"], table_id)
+    records = client.list_records(info["app_token"], table_id, view_id=info["view_id"])
     mapping = build_field_map(fields)
     planned = plan_records(records, mapping)
     out = {

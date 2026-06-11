@@ -12,7 +12,7 @@ Use Feishu Bitable as the source of rows, images, and writeback targets. Use the
 
 - Accept Base/Bitable links that contain `/base/<app_token>`.
 - Read `table` or `table_id` query parameters when present.
-- Read `view` or `view_id` query parameters when present, but do not require a view for API access.
+- Read `view` or `view_id` query parameters when present. When a coworker shares a filtered view, keep record listing scoped to that view.
 - Stop if the link cannot produce an app token.
 
 ## Probe First
@@ -40,7 +40,7 @@ Build the row plan with:
 python scripts/feishu_bitable.py plan --url "<bitable-url>" --out outputs/plan.json
 ```
 
-- Select only records that have a product image and at least one blank target field.
+- Select only records that have a product image and at least one blank target field in the linked table/view scope.
 - Default batch size is 20 records.
 - Preserve existing row values unless the user asks for refresh/overwrite.
 - Preserve formulas and calculated fields.
@@ -77,7 +77,8 @@ python scripts/feishu_bitable.py update-records --url "<bitable-url>" --updates 
 ```
 
 - Build the write payload from mapped field names, not guessed column positions.
-- Write only mapped target fields.
+- Write only mapped target fields that are currently blank in the original record.
 - Use number values for number fields and text values for text fields.
 - Do not create fields, delete records, reorder columns, or change schema.
+- Do not write formula, lookup, created/modified metadata, or other readonly fields.
 - Save evidence externally when no evidence/remarks field exists.

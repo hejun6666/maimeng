@@ -64,6 +64,8 @@ python scripts/run_batch.py --url "<bitable-url>" --plan outputs/plan.json --ima
 
 This normalizes package values, converts 1688 CNY prices to GBP, writes `outputs/updates.json`, rewrites `outputs/evidence.jsonl` for the current run, and saves `outputs/run-state.json` after each record.
 
+Rows are marked `已补齐` only when required purchase price, package dimensions, package weight, product attributes, supplier URL, and Amazon UK selling price are present. Rows missing required extracted data are marked `已补齐但缺字段` in evidence/status instead of being treated as complete.
+
 6. Write back in batches:
 
 ```powershell
@@ -75,8 +77,9 @@ python scripts/feishu_bitable.py update-records --url "<bitable-url>" --updates 
 - `run_batch.py` default batch size: 20 planned records. Pass `--batch-size 20` explicitly in production runs.
 - `feishu_bitable.py update-records` default batch size: 100 Feishu records. Pass `--batch-size 20` when you want the same 20-row writeback batches as the runner.
 - Continue other rows when one row fails.
-- Save `outputs/run-state.json` after each row and batch.
+- Save `outputs/run-state.json` after each row and batch. Rerunning `run_batch.py` continues from the next unprocessed planned row.
 - Write/rewrite `outputs/evidence.jsonl` with record_id, image path, 1688 URL, Amazon UK URLs, extracted values, confidence, and errors.
+- Write back only blank mapped fields. Existing table values are preserved.
 
 ## No Secrets In Output
 

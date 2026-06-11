@@ -204,6 +204,24 @@ class FeishuBitableClientTest(unittest.TestCase):
         self.assertEqual(calls[0], {"page_size": 2})
         self.assertEqual(calls[1], {"page_size": 2, "page_token": "page-1"})
 
+    def test_list_records_respects_view_scope(self):
+        from feishu_bitable import FeishuClient
+
+        client = FeishuClient(token="test-token")
+        calls = []
+
+        def fake_request(method, path, params=None, **kwargs):
+            calls.append(params.copy())
+            return {"items": [], "has_more": False}
+
+        client.request = fake_request
+
+        client.list_records("appABC123", "tbl456", view_id="vew789")
+        client.list_records_sample("appABC123", "tbl456", view_id="vew789")
+
+        self.assertEqual(calls[0], {"page_size": 100, "view_id": "vew789"})
+        self.assertEqual(calls[1], {"page_size": 20, "view_id": "vew789"})
+
     def test_verify_readable_product_image_downloads_one_token(self):
         from feishu_bitable import verify_readable_product_image
 
@@ -352,6 +370,34 @@ class BitablePlanTest(unittest.TestCase):
             {"record_id": "rec1", "fields": {"采购价": 2.5, "状态": "已补齐"}},
         )
 
+    def test_shape_update_skips_existing_values_and_readonly_fields(self):
+        from feishu_bitable import shape_update_record
+
+        values = {
+            "purchase_price_gbp": 2.5,
+            "supplier_url": "https://detail.1688.com/offer/1.html",
+            "status": "已补齐",
+        }
+        field_map = {
+            "purchase_price_gbp": {"field_name": "采购价", "type": 2},
+            "supplier_url": {"field_name": "1688链接", "type": 15},
+            "status": {"field_name": "状态", "type": 20},
+        }
+        original_fields = {"采购价": 9.99, "1688链接": "", "状态": ""}
+
+        self.assertEqual(
+            shape_update_record("rec1", field_map, values, original_fields=original_fields),
+            {
+                "record_id": "rec1",
+                "fields": {
+                    "1688链接": {
+                        "link": "https://detail.1688.com/offer/1.html",
+                        "text": "https://detail.1688.com/offer/1.html",
+                    }
+                },
+            },
+        )
+
     def test_update_records_rejects_malformed_payloads_before_write(self):
         from feishu_bitable import cmd_update_records
 
@@ -444,13 +490,15 @@ class ProductExtractionTest(unittest.TestCase):
     def test_parse_1688_text(self):
         from scrape_1688_product import parse_1688_text
 
-        text = "价格 ¥22.90 包装尺寸 450×320×180mm 毛重 850g"
+        text = "价格 ¥22.90 包装尺寸 450×320×180mm 毛重 850g 产品属性：硅胶材质，旋扣套装"
 
-        result = parse_1688_text(text)
+        result = parse_1688_text(text, url="https://detail.1688.com/offer/123.html")
 
         self.assertEqual(result["price_cny"], "22.90")
         self.assertEqual(result["package_dimensions"], "45.00 x 32.00 x 18.00 cm")
         self.assertEqual(result["package_weight"], "0.85 kg")
+        self.assertEqual(result["product_attribute"], "硅胶材质，旋扣套装")
+        self.assertEqual(result["url"], "https://detail.1688.com/offer/123.html")
 
     def test_parse_amazon_uk_prices(self):
         from scrape_amazon_uk_prices import parse_prices_from_text
@@ -543,6 +591,46 @@ class BatchRunnerTest(unittest.TestCase):
 
         self.assertEqual(build_update("rec1", {}, evidence), {"record_id": "rec1", "fields": {}})
 
+    def test_build_update_only_fills_blank_original_fields(self):
+        from run_batch import build_update
+
+        field_map = {
+            "purchase_price_gbp": {"field_name": "采购价", "type": 2},
+            "selling_price_gbp": {"field_name": "英国售价", "type": 2},
+            "package_dimensions": {"field_name": "包装尺寸", "type": 1},
+        }
+        evidence = {
+            "purchase_price_gbp": 2.5,
+            "selling_price_gbp": 26.99,
+            "package_dimensions": "45.00 x 32.00 x 18.00 cm",
+        }
+        original_fields = {"采购价": 9.99, "英国售价": "", "包装尺寸": None}
+
+        self.assertEqual(
+            build_update("rec1", field_map, evidence, original_fields=original_fields),
+            {
+                "record_id": "rec1",
+                "fields": {
+                    "英国售价": 26.99,
+                    "包装尺寸": "45.00 x 32.00 x 18.00 cm",
+                },
+            },
+        )
+
+    def test_incomplete_required_fields_get_partial_status(self):
+        from run_batch import build_evidence, is_complete_evidence
+
+        evidence = build_evidence(
+            "rec1",
+            {"price_cny": "22.90", "package_dimensions": "45.00 x 32.00 x 18.00 cm"},
+            {"selected_price": "26.99"},
+        )
+
+        self.assertFalse(is_complete_evidence(evidence))
+        self.assertEqual(evidence["status"], "已补齐但缺字段")
+        self.assertIn("package_weight", evidence["missing_fields"])
+        self.assertIn("product_attribute", evidence["missing_fields"])
+
     def test_row_failure_writes_evidence_and_continues(self):
         from run_batch import run_batch
 
@@ -563,7 +651,18 @@ class BatchRunnerTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (image_dir / "rec-bad.1688.json").write_text("{bad json", encoding="utf-8")
-            (image_dir / "rec-good.1688.json").write_text(json.dumps({"price_cny": "22.90"}), encoding="utf-8")
+            (image_dir / "rec-good.1688.json").write_text(
+                json.dumps(
+                    {
+                        "price_cny": "22.90",
+                        "package_dimensions": "45.00 x 32.00 x 18.00 cm",
+                        "package_weight": "0.85 kg",
+                        "product_attribute": "硅胶材质",
+                        "url": "https://detail.1688.com/offer/1.html",
+                    }
+                ),
+                encoding="utf-8",
+            )
             (image_dir / "rec-good.amazon.json").write_text(json.dumps({"selected_price": "26.99"}), encoding="utf-8")
 
             result = run_batch(plan, image_dir, updates, evidence, batch_size=20)
@@ -594,6 +693,55 @@ class BatchRunnerTest(unittest.TestCase):
         )
         self.assertEqual(state["processed"], 2)
         self.assertEqual(state["failed"], 1)
+
+    def test_run_batch_resumes_next_records_from_state(self):
+        from run_batch import run_batch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image_dir = root / "images"
+            image_dir.mkdir()
+            plan = root / "plan.json"
+            evidence = root / "evidence.jsonl"
+            updates = root / "updates.json"
+            plan.write_text(
+                json.dumps(
+                    {
+                        "field_map": {"purchase_price_gbp": {"field_name": "Purchase GBP"}},
+                        "records": [
+                            {"record_id": "rec1"},
+                            {"record_id": "rec2"},
+                            {"record_id": "rec3"},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            for record_id in ["rec1", "rec2", "rec3"]:
+                (image_dir / f"{record_id}.1688.json").write_text(
+                    json.dumps(
+                        {
+                            "price_cny": "22.90",
+                            "package_dimensions": "45.00 x 32.00 x 18.00 cm",
+                            "package_weight": "0.85 kg",
+                            "product_attribute": "硅胶材质",
+                            "url": f"https://detail.1688.com/offer/{record_id}.html",
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                (image_dir / f"{record_id}.amazon.json").write_text(
+                    json.dumps({"selected_price": "26.99"}),
+                    encoding="utf-8",
+                )
+
+            first = run_batch(plan, image_dir, updates, evidence, batch_size=2)
+            second = run_batch(plan, image_dir, updates, evidence, batch_size=2)
+            update_rows = json.loads(updates.read_text(encoding="utf-8"))
+
+        self.assertEqual(first["processed"], 2)
+        self.assertEqual(second["processed"], 3)
+        self.assertEqual([row["record_id"] for row in update_rows], ["rec3"])
 
     def test_missing_extraction_files_write_error_without_success_update(self):
         from run_batch import run_batch

@@ -20,6 +20,9 @@ PRICE_RE = re.compile(
     r"([0-9]+(?:\.[0-9]{1,2})?)",
     re.I,
 )
+ATTRIBUTE_RE = re.compile(
+    r"(?:产品属性|商品属性|规格参数|产品参数|属性)\s*[:：]\s*(.{2,160}?)(?=\s*(?:价格|价钱|批发价|现货价|包装尺寸|包裹尺寸|外箱尺寸|毛重|重量|$))"
+)
 
 
 def money(value: str) -> str:
@@ -49,7 +52,15 @@ def fetch_text(url: str, timeout: int = 30) -> str:
             return resp.read().decode("utf-8", errors="ignore")
 
 
-def parse_1688_text(text: str) -> dict[str, object]:
+def extract_product_attribute(text: str) -> str | None:
+    match = ATTRIBUTE_RE.search(text)
+    if not match:
+        return None
+    value = re.sub(r"\s+", " ", match.group(1)).strip(" ;；,，")
+    return value or None
+
+
+def parse_1688_text(text: str, url: str | None = None) -> dict[str, object]:
     normalized_text = text_from_html(text)
     price = None
     match = PRICE_RE.search(normalized_text)
@@ -64,6 +75,8 @@ def parse_1688_text(text: str) -> dict[str, object]:
         "price_cny": price,
         "package_dimensions": dimensions["text"] if dimensions else None,
         "package_weight": weight["text"] if weight else None,
+        "product_attribute": extract_product_attribute(normalized_text),
+        "url": url,
         "raw_text": normalized_text[:2000],
     }
 
@@ -81,7 +94,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     value = fetch_text(args.url, timeout=args.timeout) if args.url else (args.text or args.html or "")
-    print(json.dumps(parse_1688_text(value), ensure_ascii=True, indent=2))
+    print(json.dumps(parse_1688_text(value, url=args.url), ensure_ascii=True, indent=2))
     return 0
 
 

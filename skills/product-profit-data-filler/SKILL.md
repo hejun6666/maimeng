@@ -54,8 +54,8 @@ Do not claim live Feishu access has been verified unless the probe succeeds. Sto
 7. Get Amazon UK selling price from row-provided Amazon links first; otherwise search `amazon.co.uk` for similar products. Use `scripts/scrape_amazon_uk_prices.py`, collect credible GBP prices, and choose the middle observed price.
 8. Normalize dimensions/weight with `scripts/normalize_package_data.py`, choose collected competitor prices with `scripts/select_competitor_price.py`, and convert 1688 CNY price to GBP purchase cost with `9.17`.
 9. Build update/evidence files with `scripts/run_batch.py`.
-10. Write back only mapped input fields with `scripts/feishu_bitable.py update-records`. Preserve formulas and existing calculated columns.
-11. Save batch state after each batch and continue other rows when one row fails.
+10. Write back only mapped blank input fields with `scripts/feishu_bitable.py update-records`. Preserve existing values, formulas, readonly fields, and calculated columns.
+11. Save batch state after each record. Reruns continue from the next unprocessed planned row instead of repeating the first batch.
 
 ## References
 
@@ -85,6 +85,7 @@ Stop and ask the user when:
 - The Bitable link cannot be parsed as a Base/Bitable app.
 - Product images cannot be downloaded from records.
 - The target field map is ambiguous enough that writing may corrupt data.
+- The row is missing required extracted data such as packaging, attributes, supplier URL, or Amazon UK price; mark it as partial rather than complete.
 - Login, CAPTCHA, slider verification, account risk, payment, order, or private account information appears.
 - Search results are materially different products and no safe match exists.
 - The next action would overwrite formulas, delete records, change table schema, place an order, or expose secrets.
