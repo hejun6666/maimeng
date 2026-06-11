@@ -17,24 +17,39 @@ REQUIRED_REFERENCES = [
     "amazon-uk-price-rules.md",
     "runbook.md",
 ]
-TASK1_DOCS = [
+README_PATH = ROOT.parents[1] / "README.md"
+TASK_DOCS = [
     ROOT / "SKILL.md",
     *(ROOT / "references" / name for name in REQUIRED_REFERENCES),
 ]
+if README_PATH.exists():
+    TASK_DOCS.append(README_PATH)
+SOURCE_FILES_TO_SCAN = [
+    ROOT / "scripts" / "field_mapping.py",
+    ROOT / "scripts" / "scrape_1688_product.py",
+    ROOT / "scripts" / "scrape_amazon_uk_prices.py",
+    ROOT / "scripts" / "select_competitor_price.py",
+]
 MOJIBAKE_MARKERS = [
-    "澶氱淮琛ㄦ牸",
-    "鍥剧墖",
-    "閲囪喘浠",
-    "閫夊搧",
-    "婢舵",
-    "闁插",
+    "鍥",
+    "浜",
+    "閫",
+    "鎴",
+    "杩",
+    "澶",
+    "閲",
+    "鐜",
+    "婢",
+    "娴",
     "閸",
+    "闁",
+    "锟",
     "鈧",
-    "銆",
     "拢",
+    "楼",
 ]
 SECRET_VALUE_RE = re.compile(
-    r"(cli_[A-Za-z0-9_-]{12,}|[A-Za-z0-9_-]{32,}|FEISHU_APP_(?:ID|SECRET)\s*=\s*['\"]?[^<\s][^'\"]+)",
+    r"(cli_[A-Za-z0-9_-]{12,}|FEISHU_APP_(?:ID|SECRET)\s*=\s*['\"]?[^<\s][^'\"]+)",
 )
 STALE_WORKFLOW_RE = re.compile(
     r"future helper|later script|not runnable|not implemented|"
@@ -60,6 +75,7 @@ class SkillContractTest(unittest.TestCase):
     def test_skill_mentions_bitable_and_amazon_uk(self):
         text = read(ROOT / "SKILL.md")
         self.assertIn("Feishu Bitable", text)
+        self.assertIn("飞书多维表格", text)
         self.assertIn("amazon.co.uk", text)
         self.assertIn("9.17", text)
         self.assertIn("FEISHU_APP_ID", text)
@@ -67,6 +83,18 @@ class SkillContractTest(unittest.TestCase):
 
     def test_skill_description_is_under_1024_chars(self):
         self.assertLess(len(skill_description()), 1024)
+
+    def test_coworker_supplies_runtime_inputs_in_codex(self):
+        text = read(ROOT / "SKILL.md")
+        runbook = read(ROOT / "references" / "runbook.md")
+        combined = text + "\n" + runbook
+
+        self.assertIn("Codex input box", text)
+        self.assertIn("飞书多维表格链接", combined)
+        self.assertIn("Feishu App ID", combined)
+        self.assertIn("Feishu App Secret", combined)
+        self.assertIn("Never treat missing live credentials as an unfinished skill", text)
+        self.assertIn("请把这 3 个信息发我", text)
 
     def test_required_references_exist_one_level_deep(self):
         refs = ROOT / "references"
@@ -77,13 +105,13 @@ class SkillContractTest(unittest.TestCase):
             self.assertFalse((refs / name / name).exists(), name)
 
     def test_no_obvious_mojibake_artifacts(self):
-        for path in TASK1_DOCS:
+        for path in [*TASK_DOCS, *SOURCE_FILES_TO_SCAN]:
             text = read(path)
             for marker in MOJIBAKE_MARKERS:
                 self.assertNotIn(marker, text, f"{path.name}: {marker}")
 
     def test_no_secret_looking_literal_values(self):
-        for path in TASK1_DOCS:
+        for path in TASK_DOCS:
             text = read(path)
             self.assertIsNone(SECRET_VALUE_RE.search(text), path.name)
 
@@ -126,6 +154,11 @@ class FeishuBitableHelpersTest(unittest.TestCase):
             {"field_id": "fld_img", "field_name": "产品图片", "type": 17},
             {"field_id": "fld_cost", "field_name": "采购价", "type": 2},
             {"field_id": "fld_sale", "field_name": "英国售价", "type": 2},
+            {"field_id": "fld_dims", "field_name": "包装尺寸", "type": 1},
+            {"field_id": "fld_weight", "field_name": "包装重量", "type": 1},
+            {"field_id": "fld_note", "field_name": "备注", "type": 1},
+            {"field_id": "fld_status", "field_name": "处理状态", "type": 1},
+            {"field_id": "fld_amazon", "field_name": "亚马逊链接", "type": 15},
         ]
 
         result = build_field_map(fields)
@@ -133,6 +166,11 @@ class FeishuBitableHelpersTest(unittest.TestCase):
         self.assertEqual(result["product_image"]["field_id"], "fld_img")
         self.assertEqual(result["purchase_price_gbp"]["field_id"], "fld_cost")
         self.assertEqual(result["selling_price_gbp"]["field_id"], "fld_sale")
+        self.assertEqual(result["package_dimensions"]["field_id"], "fld_dims")
+        self.assertEqual(result["package_weight"]["field_id"], "fld_weight")
+        self.assertEqual(result["evidence"]["field_id"], "fld_note")
+        self.assertEqual(result["status"]["field_id"], "fld_status")
+        self.assertEqual(result["amazon_url"]["field_id"], "fld_amazon")
 
     def test_extract_file_tokens(self):
         from feishu_bitable import extract_file_tokens
@@ -406,7 +444,7 @@ class ProductExtractionTest(unittest.TestCase):
     def test_parse_1688_text(self):
         from scrape_1688_product import parse_1688_text
 
-        text = "浠锋牸 楼22.90 鍖呰灏哄 450脳320脳180mm 姣涢噸 850g"
+        text = "价格 ¥22.90 包装尺寸 450×320×180mm 毛重 850g"
 
         result = parse_1688_text(text)
 
@@ -417,7 +455,7 @@ class ProductExtractionTest(unittest.TestCase):
     def test_parse_amazon_uk_prices(self):
         from scrape_amazon_uk_prices import parse_prices_from_text
 
-        result = parse_prices_from_text("拢16.99 拢26.99 拢28.99")
+        result = parse_prices_from_text("£16.99 £26.99 £28.99")
 
         self.assertEqual(result["selected_price"], "26.99")
         self.assertEqual(result["marketplace"], "amazon.co.uk")

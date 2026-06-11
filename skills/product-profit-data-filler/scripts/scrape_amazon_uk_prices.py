@@ -16,7 +16,7 @@ from select_competitor_price import choose_existing_middle, money, parse_prices
 
 DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; CodexProductProfitDataFiller/1.0)"
 MARKETPLACE = "amazon.co.uk"
-GBP_RE = re.compile(r"(?:£|拢|GBP)\s*([0-9]+(?:\.[0-9]{2})?)", re.I)
+GBP_RE = re.compile(r"(?:£|GBP)\s*([0-9]+(?:\.[0-9]{2})?)", re.I)
 SPLIT_PRICE_RE = re.compile(
     r"<[^>]*class=[\"'][^\"']*a-price-symbol[^\"']*[\"'][^>]*>\s*(?:&pound;|£|GBP)?\s*</[^>]+>\s*"
     r"<[^>]*class=[\"'][^\"']*a-price-whole[^\"']*[\"'][^>]*>\s*([0-9,]+)\s*</[^>]+>\s*"

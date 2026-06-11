@@ -11,7 +11,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 
 CURRENCY_PRICE_RE = re.compile(
-    r"(?:£|拢|\$|€|¥|￥|GBP|USD|EUR|CNY|RMB)\s*([0-9]+(?:\.[0-9]{1,2})?)",
+    r"(?:£|\$|€|¥|￥|GBP|USD|EUR|CNY|RMB)\s*([0-9]+(?:\.[0-9]{1,2})?)",
     re.I,
 )
 COMMA_NUMBERS_RE = re.compile(r"^\s*[0-9]+(?:\.[0-9]{1,2})?(?:\s*,\s*[0-9]+(?:\.[0-9]{1,2})?)+\s*$")

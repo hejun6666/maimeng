@@ -16,7 +16,7 @@ from normalize_package_data import extract as extract_package
 
 DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; CodexProductProfitDataFiller/1.0)"
 PRICE_RE = re.compile(
-    r"(?:¥|￥|楼|CNY|RMB|价格|价钱|批发价|现货价|浠锋牸|鍞环|鎵瑰彂浠?)\s*"
+    r"(?:¥|￥|CNY|RMB|价格|价钱|批发价|现货价|单价|起批价|采购价)\s*[:：]?\s*(?:¥|￥)?\s*"
     r"([0-9]+(?:\.[0-9]{1,2})?)",
     re.I,
 )
