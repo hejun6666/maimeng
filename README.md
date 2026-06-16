@@ -1,6 +1,5 @@
 # 迈萌 Codex Skills
 
-这个仓库放公司内部给 Codex 使用的 skills。
 
 ## Skills
 
